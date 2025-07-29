@@ -93,7 +93,9 @@ let currentUserIsAdmin = false;
 let userIpAddress = 'unknown'; // Placeholder for IP address
 let activeGroupId = 'default-group'; // Default group ID
 let activeGroupData = null; // Stores data for the currently active group
-let firebaseInitialized = false; // Flag to ensure Firebase is ready
+
+// Flag to indicate Firebase auth state has been initially checked
+let firebaseAuthChecked = false;
 
 const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
 
@@ -125,7 +127,7 @@ messageBoxOkBtn.addEventListener('click', hideMessageBox);
 function toggleModal(modalElement, show) {
     modalElement.style.display = show ? 'flex' : 'none';
     if (!show) {
-        // Reset reCAPTCHA when modal is closed
+        // Reset reCAPTCHA when auth modal is closed
         if (typeof grecaptcha !== 'undefined' && modalElement.id === 'auth-modal') {
             grecaptcha.reset();
         }
@@ -200,8 +202,14 @@ async function fetchUserIpAddress() {
 
 // Listen for Firebase Auth state changes
 onAuthStateChanged(auth, async (user) => {
+    currentUserId = user ? user.uid : null;
+
+    // Ensure IP is fetched before attempting to load user data, but only once or if needed
+    if (!userIpAddress || userIpAddress === 'unknown') {
+        await fetchUserIpAddress();
+    }
+
     if (user) {
-        currentUserId = user.uid;
         console.log("Firebase Auth State Changed: User Logged In", currentUserId);
 
         // Check if user is admin
@@ -213,37 +221,36 @@ onAuthStateChanged(auth, async (user) => {
             cmdBtn.classList.add('hidden');
         }
 
-        // Fetch user data from Firestore
-        await fetchUserIpAddress(); // Get IP before checking user data
-        await loadUserData(currentUserId, userIpAddress);
+        const userLoaded = await loadUserData(currentUserId, userIpAddress); // This updates `currentUser` global
 
-        // If user data is loaded, proceed to chat interface
-        if (currentUser) {
+        if (userLoaded) { // User data successfully loaded (IP matched or admin)
             startScreen.classList.add('hidden');
             chatInterface.classList.remove('hidden');
+            toggleModal(authModal, false); // Ensure auth modal is hidden
+            toggleModal(termsModal, false); // Ensure terms modal is hidden
             updateUserProfileUI();
             loadUserGroups();
-            loadMessages(activeGroupId); // Load messages for the default group
-        } else {
-            // New user or IP mismatch, show registration modal
-            toggleModal(authModal, true);
+            loadMessages(activeGroupId);
+        } else { // New user or IP mismatch for non-admin
+            startScreen.classList.add('hidden'); // Hide start screen
+            toggleModal(authModal, true); // Show registration modal
+            toggleModal(termsModal, false); // Ensure terms modal is hidden
         }
     } else {
-        // User is signed out or not yet signed in
-        console.log("Firebase Auth State Changed: User Logged Out");
-        // Only show start screen if not already signed in anonymously by default
-        if (!initialAuthToken) { // If no initial token, allow anonymous sign-in flow
-             startScreen.classList.remove('hidden');
-             chatInterface.classList.add('hidden');
-        }
+        // User is signed out or not yet signed in (anonymous sign-in is handled by initial firebase.js script)
+        console.log("Firebase Auth State Changed: User Logged Out / Not Logged In");
+        startScreen.classList.add('hidden'); // Hide start screen
+        toggleModal(authModal, true); // Show registration modal
+        toggleModal(termsModal, false); // Ensure terms modal is hidden
     }
-    firebaseInitialized = true; // Mark Firebase as initialized
+    firebaseAuthChecked = true; // Mark Firebase auth as initially checked
 });
 
 /**
  * Loads user data from Firestore based on UID or IP.
  * @param {string} uid - The Firebase User ID.
  * @param {string} ip - The user's IP address.
+ * @returns {boolean} True if user data was loaded successfully, false otherwise.
  */
 async function loadUserData(uid, ip) {
     const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
@@ -413,7 +420,7 @@ function loadUserGroups() {
             console.warn("User profile document does not exist for group loading.");
         }
     }, (error) => {
-        console.error("Error loading user groups:", error);
+        console.error("Error loading user groups: ", error);
     });
 }
 
@@ -443,7 +450,7 @@ async function switchGroup(groupId, groupName) {
     await loadMessages(groupId); // Load messages for the new group
 
     // Fetch and store active group data for modal info
-    const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, groupId);
+    const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId);
     const groupSnap = await getDoc(groupDocRef);
     if (groupSnap.exists()) {
         activeGroupData = groupSnap.data();
@@ -456,32 +463,42 @@ async function switchGroup(groupId, groupName) {
 /**
  * Loads messages for a given group and sets up a real-time listener.
  * @param {string} groupId - The ID of the group to load messages for.
+ * @returns {Promise<void>}
  */
 function loadMessages(groupId) {
-    if (!db) {
-        console.error("Firestore DB not initialized.");
-        return;
-    }
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            console.error("Firestore DB not initialized.");
+            reject(new Error("Firestore DB not initialized."));
+            return;
+        }
 
-    const messagesCollectionRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
-    const q = query(messagesCollectionRef); // No orderBy to avoid index issues
+        const messagesCollectionRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
+        const q = query(messagesCollectionRef); // No orderBy to avoid index issues
 
-    onSnapshot(q, (snapshot) => {
-        chatMessages.innerHTML = ''; // Clear messages before re-rendering
-        const messages = [];
-        snapshot.forEach(doc => {
-            messages.push({ id: doc.id, ...doc.data() });
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            chatMessages.innerHTML = ''; // Clear messages before re-rendering
+            const messages = [];
+            snapshot.forEach(doc => {
+                messages.push({ id: doc.id, ...doc.data() });
+            });
+
+            // Sort messages by timestamp client-side
+            messages.sort((a, b) => (a.timestamp && b.timestamp) ? a.timestamp.toDate() - b.timestamp.toDate() : 0);
+
+            messages.forEach(msg => {
+                displayMessage(msg);
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+            resolve(); // Resolve the promise once messages are loaded
+        }, (error) => {
+            console.error("Error loading messages: ", error);
+            reject(error);
         });
 
-        // Sort messages by timestamp client-side
-        messages.sort((a, b) => (a.timestamp && b.timestamp) ? a.timestamp.toDate() - b.timestamp.toDate() : 0);
-
-        messages.forEach(msg => {
-            displayMessage(msg);
-        });
-        chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
-    }, (error) => {
-        console.error("Error loading messages: ", error);
+        // Store unsubscribe function if needed later, e.g., when switching groups
+        // This is a simplified example, in a full app you'd manage multiple listeners.
+        window.currentMessageUnsubscribe = unsubscribe;
     });
 }
 
@@ -614,20 +631,22 @@ async function sendSystemMessage(groupId, message) {
 // --- Event Listeners ---
 
 chatNowBtn.addEventListener('click', async () => {
-    if (!firebaseInitialized) {
-        showMessageBox("Hệ thống đang khởi tạo, vui lòng đợi giây lát.");
-        return;
-    }
-    // If user is already loaded (from IP check or previous session), go straight to chat
-    if (currentUser) {
+    // If Firebase auth state has been checked, and currentUser is null,
+    // it means the user is not logged in or their IP didn't match an existing profile.
+    // In this case, we should show the auth modal.
+    if (firebaseAuthChecked && !currentUser) {
+        toggleModal(authModal, true);
+    } else if (firebaseAuthChecked && currentUser) {
+        // If already logged in, just ensure the chat interface is visible
         startScreen.classList.add('hidden');
         chatInterface.classList.remove('hidden');
         updateUserProfileUI();
         loadUserGroups();
         loadMessages(activeGroupId);
     } else {
-        // Otherwise, show registration modal
-        toggleModal(authModal, true);
+        // If auth state hasn't been checked yet, show a loading message.
+        // The onAuthStateChanged listener will eventually handle the display.
+        showMessageBox("Hệ thống đang khởi tạo, vui lòng đợi giây lát.");
     }
 });
 
@@ -752,15 +771,15 @@ themeSwitch.addEventListener('change', () => {
     localStorage.setItem('theme', themeSwitch.checked ? 'dark' : 'light');
 });
 
-// Load saved theme preference
+// Load saved theme preference and fetch IP on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
         document.body.classList.add('dark-theme');
         themeSwitch.checked = true;
     }
-    // Initial IP fetch
-    fetchUserIpAddress();
+    // IP address fetch is now primarily handled by onAuthStateChanged for robustness.
+    // This ensures IP is available when auth state is determined.
 });
 
 
@@ -1266,4 +1285,3 @@ async function banUser(userId) {
     cmdOutput.textContent += `Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.\n`;
     await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userId} khỏi hệ thống.`);
 }
-
