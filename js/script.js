@@ -215,11 +215,11 @@ async function initializeAuth() {
     console.log("Initializing Firebase Auth...");
     try {
         if (initialAuthToken) {
-            await signInWithCustomToken(auth, initialAuthToken);
-            console.log("Signed in with custom token.");
+            const userCredential = await signInWithCustomToken(auth, initialAuthToken);
+            console.log("Signed in with custom token. User UID:", userCredential.user.uid);
         } else {
-            await signInAnonymously(auth);
-            console.log("Signed in anonymously.");
+            const userCredential = await signInAnonymously(auth);
+            console.log("Signed in anonymously. User UID:", userCredential.user.uid);
         }
         isFirebaseInitialized = true; // Mark Firebase as initialized
     } catch (error) {
@@ -232,6 +232,7 @@ async function initializeAuth() {
 async function handleAuthStateAndUI(user) {
     currentUserId = user ? user.uid : null;
     console.log("onAuthStateChanged fired. User:", user ? user.uid : "null");
+    console.log("Current currentUserId after onAuthStateChanged:", currentUserId); // Log currentUserId here
 
     if (!userIpAddress || userIpAddress === 'unknown') {
         await fetchUserIpAddress();
