@@ -130,8 +130,10 @@ function setupEventListeners() {
     // Terms modal
     agreeTermsCheckbox.addEventListener('change', function() {
         startChatFinalBtn.disabled = !this.checked;
-    });
-    startChatFinalBtn.addEventListener('click', registerUser);
+        
+}); 
+
+startChatFinalBtn.addEventListener('click', registerUser);
     
     // Chat interface
     if (themeSwitch) themeSwitch.addEventListener('change', toggleTheme);
