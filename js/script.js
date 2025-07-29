@@ -1,3 +1,6 @@
+// Add a console log at the very beginning to confirm script execution
+console.log("script.js loaded and executing.");
+
 // Firebase configuration from the user's prompt
 const firebaseConfig = {
     apiKey: "AIzaSyD4ja8kpnQNeWhfpgcKsbC9UNOyVC_ibyo",
@@ -208,10 +211,14 @@ async function fetchUserIpAddress() {
 if (initialAuthToken) {
     signInWithCustomToken(auth, initialAuthToken).catch((error) => {
         console.error("Error signing in with custom token:", error);
+        showMessageBox(`Lỗi đăng nhập Firebase: ${error.code || error.message}. Vui lòng kiểm tra cấu hình Firebase Auth.`);
         signInAnonymously(auth); // Fallback to anonymous if custom token fails
     });
 } else {
-    signInAnonymously(auth);
+    signInAnonymously(auth).catch((error) => {
+        console.error("Error signing in anonymously:", error);
+        showMessageBox(`Lỗi đăng nhập ẩn danh: ${error.code || error.message}. Vui lòng đảm bảo Anonymous Auth đã được bật trong Firebase.`);
+    });
 }
 
 // Listen for Firebase Auth state changes
@@ -253,6 +260,8 @@ onAuthStateChanged(auth, async (user) => {
     } else {
         // User is signed out or not yet signed in (anonymous sign-in is handled by initial firebase.js script)
         console.log("Firebase Auth State Changed: User Logged Out / Not Logged In");
+        // If the user is explicitly signed out or not logged in, we should show the auth modal.
+        // This state is also reached if initial anonymous sign-in fails.
         startScreen.classList.add('hidden'); // Hide start screen
         toggleModal(authModal, true); // Show registration modal
         toggleModal(termsModal, false); // Ensure terms modal is hidden
@@ -294,6 +303,7 @@ async function loadUserData(uid, ip) {
         }
     } catch (error) {
         console.error("Error loading user data:", error);
+        showMessageBox(`Lỗi khi tải dữ liệu người dùng: ${error.code || error.message}.`);
         currentUser = null;
         return false;
     }
@@ -305,37 +315,40 @@ async function loadUserData(uid, ip) {
  */
 async function registerUser(name) {
     if (!currentUserId) {
-        showMessageBox("Lỗi: Không tìm thấy ID người dùng.");
+        showMessageBox("Lỗi đăng kí: Không tìm thấy ID người dùng. Vui lòng thử lại.");
+        console.error("Registration Error: currentUserId is null.");
         return;
     }
-
-    // Check if an account already exists for this IP
-    const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
-    const q = query(usersCollectionRef, where('profile.data.ipAddress', '==', userIpAddress));
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty && !currentUserIsAdmin) {
-        showMessageBox("Địa chỉ IP này đã được sử dụng để đăng kí tài khoản khác. Vui lòng sử dụng tài khoản đã đăng kí hoặc liên hệ admin.");
-        return;
-    }
-
-    const newUserData = {
-        name: name,
-        id: currentUserId, // Use Firebase UID as user ID
-        ipAddress: userIpAddress,
-        createdAt: serverTimestamp(),
-        groups: ['default-group'], // Automatically join default group
-        isAdmin: false,
-        isPaused: false, // For admin commands
-    };
 
     try {
+        // Check if an account already exists for this IP
+        const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
+        const q = query(usersCollectionRef, where('profile.data.ipAddress', '==', userIpAddress));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty && !currentUserIsAdmin) {
+            showMessageBox("Địa chỉ IP này đã được sử dụng để đăng kí tài khoản khác. Vui lòng sử dụng tài khoản đã đăng kí hoặc liên hệ admin.");
+            console.warn("Registration blocked: IP address already registered by another user.");
+            return;
+        }
+
+        const newUserData = {
+            name: name,
+            id: currentUserId, // Use Firebase UID as user ID
+            ipAddress: userIpAddress,
+            createdAt: serverTimestamp(),
+            groups: ['default-group'], // Automatically join default group
+            isAdmin: false,
+            isPaused: false, // For admin commands
+        };
+
         // Store user profile data
         const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data');
         await setDoc(userProfileDocRef, newUserData);
+        console.log("User profile saved successfully.");
+
         currentUser = newUserData;
         currentUserName = name;
-        console.log("User registered successfully:", newUserData);
 
         // Add user to the default group's members list
         const defaultGroupRef = doc(db, `artifacts/${appId}/public/data/groups`, 'default-group');
@@ -365,19 +378,26 @@ async function registerUser(name) {
             console.log("Default group created and user added.");
         }
 
-        toggleModal(termsModal, false);
-        startScreen.classList.add('hidden');
-        chatInterface.classList.remove('hidden');
+        // --- UI Transition after successful registration ---
+        toggleModal(termsModal, false); // Hide terms modal
+        startScreen.classList.add('hidden'); // Hide start screen
+        chatInterface.classList.remove('hidden'); // Show chat interface
+
         updateUserProfileUI();
         loadUserGroups();
-        loadMessages(activeGroupId);
+        await loadMessages(activeGroupId); // Ensure messages are loaded before sending system message
 
         // Send system message about new user joining
         await sendSystemMessage(activeGroupId, `${name} vừa tham gia nhóm.`);
+        showMessageBox("Đăng kí thành công! Chào mừng bạn đến với Dô La Chat.");
 
     } catch (e) {
-        console.error("Error registering user: ", e);
-        showMessageBox("Đã xảy ra lỗi khi đăng kí. Vui lòng thử lại.");
+        console.error("Error registering user or setting up default group: ", e);
+        if (e.code) {
+            showMessageBox(`Lỗi Firebase khi đăng kí: ${e.code}. Vui lòng kiểm tra Firebase Security Rules và phương thức xác thực.`);
+        } else {
+            showMessageBox("Đã xảy ra lỗi không xác định khi đăng kí. Vui lòng thử lại.");
+        }
     }
 }
 
@@ -441,6 +461,7 @@ function loadUserGroups() {
         }
     }, (error) => {
         console.error("Error loading user groups: ", error);
+        showMessageBox(`Lỗi khi tải danh sách nhóm: ${error.code || error.message}.`);
     });
 }
 
@@ -471,12 +492,18 @@ async function switchGroup(groupId, groupName) {
 
     // Fetch and store active group data for modal info
     const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId);
-    const groupSnap = await getDoc(groupDocRef);
-    if (groupSnap.exists()) {
-        activeGroupData = groupSnap.data();
-    } else {
-        activeGroupData = null;
-        console.warn("Active group data not found for:", groupId);
+    try {
+        const groupSnap = await getDoc(groupDocRef);
+        if (groupSnap.exists()) {
+            activeGroupData = groupSnap.data();
+        } else {
+            activeGroupData = null;
+            console.warn("Active group data not found for:", groupId);
+            showMessageBox("Không tìm thấy thông tin nhóm đang hoạt động.");
+        }
+    } catch (error) {
+        console.error("Error fetching active group data:", error);
+        showMessageBox(`Lỗi khi tải thông tin nhóm: ${error.code || error.message}.`);
     }
 }
 
@@ -513,6 +540,7 @@ function loadMessages(groupId) {
             resolve(); // Resolve the promise once messages are loaded
         }, (error) => {
             console.error("Error loading messages: ", error);
+            showMessageBox(`Lỗi khi tải tin nhắn: ${error.code || error.message}.`);
             reject(error);
         });
 
@@ -623,7 +651,7 @@ async function sendMessage() {
         chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
     } catch (e) {
         console.error("Error sending message: ", e);
-        showMessageBox("Đã xảy ra lỗi khi gửi tin nhắn. Vui lòng thử lại.");
+        showMessageBox(`Lỗi khi gửi tin nhắn: ${e.code || e.message}. Vui lòng thử lại.`);
     }
 }
 
@@ -645,6 +673,7 @@ async function sendSystemMessage(groupId, message) {
         await addDoc(messagesCollectionRef, systemMessage);
     } catch (e) {
         console.error("Error sending system message: ", e);
+        showMessageBox(`Lỗi khi gửi tin nhắn hệ thống: ${e.code || e.message}.`);
     }
 }
 
@@ -770,7 +799,7 @@ googleLoginBtn.addEventListener('click', async () => {
         }
     } catch (error) {
         console.error("Google login error:", error);
-        showMessageBox("Đăng nhập Google thất bại. Vui lòng thử lại.");
+        showMessageBox(`Đăng nhập Google thất bại: ${error.code || error.message}. Vui lòng thử lại.`);
     }
 });
 
@@ -870,7 +899,7 @@ createGroupBtn.addEventListener('click', async () => {
 
     } catch (e) {
         console.error("Error creating group: ", e);
-        showMessageBox("Đã xảy ra lỗi khi tạo nhóm. Vui lòng thử lại.");
+        showMessageBox(`Đã xảy ra lỗi khi tạo nhóm: ${e.code || e.message}. Vui lòng thử lại.`);
     }
 });
 
@@ -925,7 +954,7 @@ joinGroupBtn.addEventListener('click', async () => {
         }
     } catch (e) {
         console.error("Error joining group: ", e);
-        showMessageBox("Đã xảy ra lỗi khi tham gia nhóm. Vui lòng thử lại.");
+        showMessageBox(`Đã xảy ra lỗi khi tham gia nhóm: ${e.code || e.message}. Vui lòng thử lại.`);
     }
 });
 
@@ -937,13 +966,20 @@ groupInfoBtn.addEventListener('click', async () => {
 
     // Ensure activeGroupData is up-to-date
     const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId);
-    const groupSnap = await getDoc(groupDocRef);
-    if (groupSnap.exists()) {
-        activeGroupData = groupSnap.data();
-    } else {
-        showMessageBox("Không tìm thấy thông tin nhóm.");
+    try {
+        const groupSnap = await getDoc(groupDocRef);
+        if (groupSnap.exists()) {
+            activeGroupData = groupSnap.data();
+        } else {
+            showMessageBox("Không tìm thấy thông tin nhóm.");
+            return;
+        }
+    } catch (error) {
+        console.error("Error fetching group info:", error);
+        showMessageBox(`Lỗi khi tải thông tin nhóm: ${error.code || error.message}.`);
         return;
     }
+
 
     infoGroupName.textContent = activeGroupData.name;
     infoGroupCreator.textContent = activeGroupData.creatorName;
@@ -1013,7 +1049,7 @@ sendInviteBtn.addEventListener('click', async () => {
 
     } catch (e) {
         console.error("Error sending invite: ", e);
-        showMessageBox("Đã xảy ra lỗi khi gửi lời mời. Vui lòng thử lại.");
+        showMessageBox(`Đã xảy ra lỗi khi gửi lời mời: ${e.code || e.message}. Vui lòng thử lại.`);
     }
 });
 
@@ -1076,7 +1112,7 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
 
     } catch (e) {
         console.error("Error deleting group: ", e);
-        showMessageBox("Đã xảy ra lỗi khi xóa nhóm. Vui lòng thử lại.");
+        showMessageBox(`Đã xảy ra lỗi khi xóa nhóm: ${e.code || e.message}. Vui lòng thử lại.`);
     }
 });
 
@@ -1166,7 +1202,7 @@ async function executeAdminCommand() {
         }
     } catch (e) {
         console.error("CMD execution error:", e);
-        cmdOutput.textContent += `Lỗi thực thi lệnh: ${e.message || e}\n`;
+        cmdOutput.textContent += `Lỗi thực thi lệnh: ${e.code || e.message || e}\n`;
     }
     cmdOutput.scrollTop = cmdOutput.scrollHeight; // Scroll to bottom
 }
@@ -1178,7 +1214,7 @@ async function toggleUserPause(userId, pause) {
         cmdOutput.textContent += `Người dùng ${userId} đã ${pause ? 'bị khóa' : 'được mở khóa'} chat.\n`;
         await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat của người dùng ${userId}.`);
     } catch (e) {
-        cmdOutput.textContent += `Lỗi khi ${pause ? 'khóa' : 'mở khóa'} người dùng ${userId}: ${e.message}\n`;
+        cmdOutput.textContent += `Lỗi khi ${pause ? 'khóa' : 'mở khóa'} người dùng ${userId}: ${e.code || e.message}\n`;
     }
 }
 
@@ -1186,27 +1222,102 @@ async function clearMessages(targetId) {
     // Determine if targetId is a user or a group
     // For simplicity, assume if it's a group ID, it's a group. Otherwise, a user.
     const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, targetId);
-    const groupSnap = await getDoc(groupRef);
+    try {
+        const groupSnap = await getDoc(groupRef);
 
-    if (groupSnap.exists()) { // It's a group
-        const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${targetId}/messages`);
-        const q = query(messagesRef);
+        if (groupSnap.exists()) { // It's a group
+            const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${targetId}/messages`);
+            const q = query(messagesRef);
+            const snapshot = await getDocs(q);
+            const batch = db.batch(); // Use batch for multiple deletes
+            snapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+            cmdOutput.textContent += `Đã xóa tất cả tin nhắn trong nhóm ${targetId}.\n`;
+            await sendSystemMessage(targetId, `Admin đã xóa tất cả tin nhắn trong nhóm này.`);
+        } else { // Assume it's a user ID
+            const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+            const groupsSnapshot = await getDocs(usersCollectionRef);
+
+            for (const groupDoc of groupsSnapshot.docs) {
+                const groupId = groupDoc.id;
+                const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
+                const q = query(messagesRef, where('senderId', '==', targetId));
+                const snapshot = await getDocs(q);
+                const batch = db.batch();
+                snapshot.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+            }
+            cmdOutput.textContent += `Đã xóa tất cả tin nhắn của người dùng ${targetId} trên tất cả các nhóm.\n`;
+            await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn của người dùng ${targetId}.`);
+        }
+    } catch (e) {
+        cmdOutput.textContent += `Lỗi khi xóa tin nhắn: ${e.code || e.message}\n`;
+    }
+}
+
+async function showGroups() {
+    try {
+        const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+        const q = query(groupsCollectionRef);
         const snapshot = await getDocs(q);
+        cmdOutput.textContent += "Danh sách các nhóm:\n";
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Mật khẩu: ${data.password || 'Không có'}\n`;
+        });
+    } catch (e) {
+        cmdOutput.textContent += `Lỗi khi hiển thị nhóm: ${e.code || e.message}\n`;
+    }
+}
+
+async function showPeople() {
+    try {
+        const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
+        const snapshot = await getDocs(usersCollectionRef);
+        cmdOutput.textContent += "Danh sách các tài khoản:\n";
+        for (const userDoc of snapshot.docs) {
+            const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
+            const profileSnap = await getDoc(profileDocRef);
+            if (profileSnap.exists()) {
+                const data = profileSnap.data();
+                cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Admin: ${data.isAdmin ? 'Có' : 'Không'}, IP: ${data.ipAddress}\n`;
+            }
+        }
+    } catch (e) {
+        cmdOutput.textContent += `Lỗi khi hiển thị người dùng: ${e.code || e.message}\n`;
+    }
+}
+
+async function toggleAllPause(pause) {
+    try {
+        const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
+        const snapshot = await getDocs(usersCollectionRef);
         const batch = db.batch();
-        snapshot.forEach((doc) => {
-            batch.delete(doc.ref);
+        snapshot.forEach(userDoc => {
+            const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
+            batch.update(profileDocRef, { isPaused: pause });
         });
         await batch.commit();
-        cmdOutput.textContent += `Đã xóa tất cả tin nhắn trong nhóm ${targetId}.\n`;
-        await sendSystemMessage(targetId, `Admin đã xóa tất cả tin nhắn trong nhóm này.`);
-    } else { // Assume it's a user ID
-        const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
-        const groupsSnapshot = await getDocs(usersCollectionRef);
+        cmdOutput.textContent += `Đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng (trừ admin).\n`;
+        await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng.`);
+    } catch (e) {
+        cmdOutput.textContent += `Lỗi khi ${pause ? 'khóa' : 'mở khóa'} tất cả người dùng: ${e.code || e.message}\n`;
+    }
+}
+
+async function clearAllMessages() {
+    try {
+        const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+        const groupsSnapshot = await getDocs(groupsCollectionRef);
 
         for (const groupDoc of groupsSnapshot.docs) {
             const groupId = groupDoc.id;
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
-            const q = query(messagesRef, where('senderId', '==', targetId));
+            const q = query(messagesRef);
             const snapshot = await getDocs(q);
             const batch = db.batch();
             snapshot.forEach((doc) => {
@@ -1214,66 +1325,11 @@ async function clearMessages(targetId) {
             });
             await batch.commit();
         }
-        cmdOutput.textContent += `Đã xóa tất cả tin nhắn của người dùng ${targetId} trên tất cả các nhóm.\n`;
-        await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn của người dùng ${targetId}.`);
+        cmdOutput.textContent += "Đã xóa tất cả tin nhắn trên tất cả các nhóm.\n";
+        await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
+    } catch (e) {
+        cmdOutput.textContent += `Lỗi khi xóa tất cả tin nhắn: ${e.code || e.message}\n`;
     }
-}
-
-async function showGroups() {
-    const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
-    const q = query(groupsCollectionRef);
-    const snapshot = await getDocs(q);
-    cmdOutput.textContent += "Danh sách các nhóm:\n";
-    snapshot.forEach(doc => {
-        const data = doc.data();
-        cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Mật khẩu: ${data.password || 'Không có'}\n`;
-    });
-}
-
-async function showPeople() {
-    const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
-    const snapshot = await getDocs(usersCollectionRef);
-    cmdOutput.textContent += "Danh sách các tài khoản:\n";
-    for (const userDoc of snapshot.docs) {
-        const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
-        const profileSnap = await getDoc(profileDocRef);
-        if (profileSnap.exists()) {
-            const data = profileSnap.data();
-            cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Admin: ${data.isAdmin ? 'Có' : 'Không'}, IP: ${data.ipAddress}\n`;
-        }
-    }
-}
-
-async function toggleAllPause(pause) {
-    const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
-    const snapshot = await getDocs(usersCollectionRef);
-    const batch = db.batch();
-    snapshot.forEach(userDoc => {
-        const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
-        batch.update(profileDocRef, { isPaused: pause });
-    });
-    await batch.commit();
-    cmdOutput.textContent += `Đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng (trừ admin).\n`;
-    await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng.`);
-}
-
-async function clearAllMessages() {
-    const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
-    const groupsSnapshot = await getDocs(groupsCollectionRef);
-
-    for (const groupDoc of groupsSnapshot.docs) {
-        const groupId = groupDoc.id;
-        const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
-        const q = query(messagesRef);
-        const snapshot = await getDocs(q);
-        const batch = db.batch();
-        snapshot.forEach((doc) => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-    }
-    cmdOutput.textContent += "Đã xóa tất cả tin nhắn trên tất cả các nhóm.\n";
-    await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
 }
 
 async function banUser(userId) {
@@ -1282,24 +1338,28 @@ async function banUser(userId) {
         return;
     }
 
-    // 1. Remove user from all groups
-    const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
-    const groupsSnapshot = await getDocs(groupsCollectionRef);
+    try {
+        // 1. Remove user from all groups
+        const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+        const groupsSnapshot = await getDocs(groupsCollectionRef);
 
-    for (const groupDoc of groupsSnapshot.docs) {
-        const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupDoc.id);
-        const groupData = groupDoc.data();
-        const updatedMembers = (groupData.members || []).filter(member => member !== userId);
-        await updateDoc(groupRef, { members: updatedMembers });
+        for (const groupDoc of groupsSnapshot.docs) {
+            const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupDoc.id);
+            const groupData = groupDoc.data();
+            const updatedMembers = (groupData.members || []).filter(member => member !== userId);
+            await updateDoc(groupRef, { members: updatedMembers });
+        }
+
+        // 2. Delete all messages sent by the user
+        await clearMessages(userId); // Re-use clearMessages for user's messages
+
+        // 3. Delete user's profile document
+        const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+        await deleteDoc(userProfileRef);
+
+        cmdOutput.textContent += `Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.\n`;
+        await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userId} khỏi hệ thống.`);
+    } catch (e) {
+        cmdOutput.textContent += `Lỗi khi cấm người dùng ${userId}: ${e.code || e.message}\n`;
     }
-
-    // 2. Delete all messages sent by the user
-    await clearMessages(userId); // Re-use clearMessages for user's messages
-
-    // 3. Delete user's profile document
-    const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-    await deleteDoc(userProfileRef);
-
-    cmdOutput.textContent += `Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.\n`;
-    await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userId} khỏi hệ thống.`);
 }
