@@ -1,14 +1,11 @@
-// Ở đầu file script.js
-let userIdValue = null; // Khai báo ngoài hàm
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCCdfy0t-EFhx4vTaoKLPWga76mUofHCXA",
-  authDomain: "toancreator-online-study.firebaseapp.com",
-  databaseURL: "https://toancreator-online-study-default-rtdb.firebaseio.com", // ĐÃ SỬA LẠI
-  projectId: "toancreator-online-study",
-  storageBucket: "toancreator-online-study.appspot.com",
-  messagingSenderId: "904765786415",
-  appId: "1:904765786415:web:8beccb1c80a8f462d6b9da"
+    apiKey: "AIzaSyCCdfy0t-EFhx4vTaoKLPWga76mUofHCXA",
+    authDomain: "toancreator-online-study.firebaseapp.com",
+    projectId: "toancreator-online-study",
+    storageBucket: "toancreator-online-study.appspot.com",
+    messagingSenderId: "904765786415",
+    appId: "1:904765786415:web:8beccb1c80a8f462d6b9da"
 };
 
 // Initialize Firebase
@@ -72,66 +69,54 @@ let currentUser = null;
 let currentGroup = null;
 let isAdmin = false;
 let userIP = null;
+let isInitialized = false;
 
 // Initialize the app
 function init() {
-    console.log('Đang khởi tạo ứng dụng'); // Thêm log kiểm tra
-    
-    // Kiểm tra theme
-    checkThemePreference();
-    
-    // Ẩn tất cả modal
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.style.display = 'none';
-    });
+    if (isInitialized) return;
+    isInitialized = true;
 
-    // Kiểm tra user đã đăng nhập
-    try {
-        const savedUser = localStorage.getItem('chatUser');
-        if (savedUser) {
+    // Hide all modals first
+    hideAllModals();
+
+    // Check if user already exists in localStorage
+    const savedUser = localStorage.getItem('chatUser');
+    if (savedUser) {
+        try {
             currentUser = JSON.parse(savedUser);
-            console.log('Phát hiện user đã đăng nhập:', currentUser);
             showChatInterface();
             joinDefaultGroup();
-        } else {
-            console.log('Chưa có user, hiển thị màn hình chào');
-            showWelcomeScreen();
+            return;
+        } catch (e) {
+            console.error('Error parsing saved user:', e);
+            localStorage.removeItem('chatUser');
         }
-    } catch (e) {
-        console.error('Lỗi khi kiểm tra user:', e);
-        showWelcomeScreen();
     }
     
-    // Lấy địa chỉ IP
+    // Show welcome screen if no user
+    showWelcomeScreen();
+    
+    // Get user IP
     fetch('https://api.ipify.org?format=json')
         .then(response => response.json())
         .then(data => {
             userIP = data.ip;
-            console.log('IP người dùng:', userIP);
         })
         .catch(error => {
-            console.error('Lỗi khi lấy IP:', error);
+            console.error('Error getting IP:', error);
             userIP = 'unknown';
         });
     
+    // Set up event listeners
     setupEventListeners();
 }
 
-function initDefaultData() {
-    // Tạo nhóm mặc định nếu chưa tồn tại
-    database.ref('groups/default-group').once('value').then(snap => {
-        if (!snap.exists()) {
-            database.ref('groups/default-group').set({
-                name: "Dô la - ToanCreator",
-                creatorId: "system",
-                createdAt: new Date().toLocaleString('vi-VN')
-            });
-        }
+function hideAllModals() {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        modal.style.display = 'none';
     });
 }
-
-// Gọi hàm khi khởi động
-initDefaultData();
 
 // Set up event listeners
 function setupEventListeners() {
@@ -149,51 +134,55 @@ function setupEventListeners() {
     startChatFinalBtn.addEventListener('click', registerUser);
     
     // Chat interface
-    themeSwitch.addEventListener('change', toggleTheme);
-    sendBtn.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
+    if (themeSwitch) themeSwitch.addEventListener('change', toggleTheme);
+    if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+    if (messageInput) {
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    }
     
     // Group actions
-    groupInfoBtn.addEventListener('click', showGroupInfo);
-    addMemberBtn.addEventListener('click', showAddMemberModal);
-    deleteGroupBtn.addEventListener('click', showDeleteGroupModal);
-    adminCmdBtn.addEventListener('click', showAdminCmdModal);
+    if (groupInfoBtn) groupInfoBtn.addEventListener('click', showGroupInfo);
+    if (addMemberBtn) addMemberBtn.addEventListener('click', showAddMemberModal);
+    if (deleteGroupBtn) deleteGroupBtn.addEventListener('click', showDeleteGroupModal);
+    if (adminCmdBtn) adminCmdBtn.addEventListener('click', showAdminCmdModal);
     
     // Admin commands
-    adminGoogleBtn.addEventListener('click', signInWithGoogle);
-    executeCmdBtn.addEventListener('click', executeCommand);
-    cmdInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            executeCommand();
-        }
-    });
+    if (adminGoogleBtn) adminGoogleBtn.addEventListener('click', signInWithGoogle);
+    if (executeCmdBtn) executeCmdBtn.addEventListener('click', executeCommand);
+    if (cmdInput) {
+        cmdInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                executeCommand();
+            }
+        });
+    }
     
     // Tabs
-    createTab.addEventListener('click', function() {
+    if (createTab) createTab.addEventListener('click', function() {
         switchTab('create');
     });
-    joinTab.addEventListener('click', function() {
+    if (joinTab) joinTab.addEventListener('click', function() {
         switchTab('join');
     });
     
     // Forms
-    createGroupForm.addEventListener('submit', function(e) {
+    if (createGroupForm) createGroupForm.addEventListener('submit', function(e) {
         e.preventDefault();
         createGroup();
     });
-    joinGroupForm.addEventListener('submit', function(e) {
+    if (joinGroupForm) joinGroupForm.addEventListener('submit', function(e) {
         e.preventDefault();
         joinGroup();
     });
-    addMemberForm.addEventListener('submit', function(e) {
+    if (addMemberForm) addMemberForm.addEventListener('submit', function(e) {
         e.preventDefault();
         inviteMember();
     });
-    deleteGroupForm.addEventListener('submit', function(e) {
+    if (deleteGroupForm) deleteGroupForm.addEventListener('submit', function(e) {
         e.preventDefault();
         deleteGroup();
     });
@@ -215,22 +204,33 @@ function setupEventListeners() {
 
 // Show welcome screen
 function showWelcomeScreen() {
-    welcomeScreen.style.display = 'flex';
-    registrationModal.style.display = 'none';
-    termsModal.style.display = 'none';
-    chatInterface.style.display = 'none';
+    hideAllModals();
+    if (welcomeScreen) welcomeScreen.style.display = 'flex';
+    if (registrationModal) registrationModal.style.display = 'none';
+    if (termsModal) termsModal.style.display = 'none';
+    if (chatInterface) chatInterface.style.display = 'none';
 }
 
 // Show registration modal
 function showRegistrationModal() {
+    if (!welcomeScreen || !registrationModal) return;
     welcomeScreen.style.display = 'none';
     registrationModal.style.display = 'flex';
+    if (usernameInput) usernameInput.focus();
 }
 
 // Show terms modal
 function showTermsModal() {
+    if (!usernameInput) return;
+    
     const username = usernameInput.value.trim();
-    const recaptchaResponse = grecaptcha.getResponse();
+    let recaptchaResponse = '';
+    
+    try {
+        recaptchaResponse = grecaptcha.getResponse();
+    } catch (e) {
+        console.error('reCAPTCHA error:', e);
+    }
     
     if (!username) {
         alert('Vui lòng nhập Họ và Tên');
@@ -247,153 +247,138 @@ function showTermsModal() {
         return;
     }
     
-    registrationModal.style.display = 'none';
-    termsModal.style.display = 'flex';
+    if (registrationModal) registrationModal.style.display = 'none';
+    if (termsModal) termsModal.style.display = 'flex';
 }
 
 // Register user
 function registerUser() {
+    if (!usernameInput) return;
+    
+    const username = usernameInput.value.trim();
+    
+    // Generate user ID (timestamp + random number)
+    const userIdValue = Date.now() + Math.floor(Math.random() * 1000);
+    const createdAt = new Date().toLocaleString('vi-VN');
+    
+    currentUser = {
+        username,
+        userId: userIdValue,
+        createdAt,
+        ip: userIP
+    };
+    
+    // Save user to localStorage
     try {
-        const username = usernameInput.value.trim();
-        
-        // Validate username
-        if (!username || username.length > 20) {
-            alert('Tên phải từ 1-20 ký tự');
-            return;
-        }
-
-        // Tạo ID người dùng (THÊM DÒNG NÀY)
-        const userIdValue = Date.now() + Math.floor(Math.random() * 1000);
-        const createdAt = new Date().toLocaleString('vi-VN');
-        
-        currentUser = {
-            username,
-            userId: userIdValue,  // SỬ DỤNG BIẾN ĐÃ KHAI BÁO
-            createdAt,
-            ip: userIP
-        };
-
-        console.log('Đang đăng ký user:', currentUser); // Log kiểm tra
-
-        // Lưu vào localStorage
         localStorage.setItem('chatUser', JSON.stringify(currentUser));
-
-        // Lưu vào Firebase
-        return database.ref('users/' + userIdValue).set({
-            username,
-            createdAt,
-            ip: userIP
-        }).then(() => {
-            console.log('Đăng ký Firebase thành công');
-            termsModal.style.display = 'none';
-            showChatInterface();
-            return joinDefaultGroup();
-        });
-    } catch (error) {
-        console.error('Lỗi trong quá trình đăng ký:', error);
-        alert('Lỗi hệ thống: ' + error.message);
-        throw error; // Re-throw để bắt lỗi ở nơi gọi hàm
+    } catch (e) {
+        console.error('Error saving user to localStorage:', e);
+        alert('Lỗi khi lưu thông tin người dùng');
+        return;
     }
+    
+    // Save user to Firebase
+    database.ref('users/' + userIdValue).set({
+        username,
+        createdAt,
+        ip: userIP
+    }).then(() => {
+        if (termsModal) termsModal.style.display = 'none';
+        showChatInterface();
+        joinDefaultGroup();
+    }).catch(error => {
+        console.error('Error saving user to Firebase:', error);
+        alert('Lỗi khi đăng ký người dùng');
+    });
 }
 
 // Show chat interface
 function showChatInterface() {
-    // Đảm bảo ẩn tất cả modal trước
-    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    hideAllModals();
+    if (welcomeScreen) welcomeScreen.style.display = 'none';
+    if (chatInterface) chatInterface.style.display = 'flex';
     
-    // Hiển thị giao diện chat
-    document.getElementById('chat-interface').style.display = 'flex';
+    // Update user info
+    if (displayName) displayName.textContent = currentUser.username;
+    if (userId) userId.textContent = 'ID: ' + currentUser.userId;
+    if (accountCreated) accountCreated.textContent = currentUser.createdAt;
     
-    // Đảm bảo các phần tử chính hiển thị
-    document.querySelector('.sidebar').style.display = 'block';
-    document.querySelector('.chat-main').style.display = 'flex';
-    
-    // Load dữ liệu
+    // Load user groups
     loadUserGroups();
-    loadMessages(currentGroup || 'default-group');
-    
-    console.log('Giao diện chat đã được hiển thị'); // Kiểm tra log
 }
 
 // Join default group
 function joinDefaultGroup() {
     const defaultGroupId = 'default-group';
+    currentGroup = defaultGroupId;
+    if (currentGroupName) currentGroupName.textContent = 'Dô la - ToanCreator';
     
-    return new Promise((resolve) => {
-        database.ref('groups/' + defaultGroupId).once('value').then(snap => {
-            if (!snap.exists()) {
-                // Tạo nhóm mặc định nếu chưa tồn tại
-                database.ref('groups/' + defaultGroupId).set({
-                    name: "Dô la - ToanCreator",
-                    creatorId: "system",
-                    createdAt: new Date().toLocaleString('vi-VN')
-                });
-            }
-
-            // Thêm user vào nhóm
-            database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId)
-                .set({
+    // Check if user is already in the group
+    database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId).once('value')
+        .then(snapshot => {
+            if (!snapshot.exists()) {
+                // Add user to group
+                database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId).set({
                     username: currentUser.username,
                     joinedAt: new Date().toLocaleString('vi-VN')
-                })
-                .then(() => {
-                    currentGroup = defaultGroupId;
-                    resolve();
                 });
+                
+                // Add group to user's groups
+                database.ref('userGroups/' + currentUser.userId + '/' + defaultGroupId).set({
+                    groupName: 'Dô la - ToanCreator',
+                    joinedAt: new Date().toLocaleString('vi-VN')
+                });
+                
+                // Send welcome message
+                const welcomeMessage = {
+                    senderId: 'system',
+                    senderName: 'Hệ thống',
+                    content: currentUser.username + ' đã tham gia nhóm',
+                    timestamp: new Date().toLocaleString('vi-VN'),
+                    type: 'notification'
+                };
+                
+                database.ref('messages/' + defaultGroupId).push(welcomeMessage);
+            }
+            
+            // Load messages
+            loadMessages(defaultGroupId);
+        }).catch(error => {
+            console.error('Error joining default group:', error);
         });
-    });
 }
 
 // Load user groups
 function loadUserGroups() {
-    // Xóa danh sách nhóm cũ
-    contactList.innerHTML = '';
+    if (!contactList) return;
     
-    // Thêm nút tạo/tham gia nhóm
-    const addGroupItem = document.createElement('div');
-    addGroupItem.className = 'contact-item add-group';
-    addGroupItem.innerHTML = `
-        <div class="contact-avatar">
-            <i class="fas fa-plus"></i>
-        </div>
-        <span>Tạo/Tham gia nhóm</span>
-    `;
-    addGroupItem.addEventListener('click', () => {
-        addGroupModal.style.display = 'flex';
-    });
-    contactList.appendChild(addGroupItem);
-    
-    // Luôn thêm nhóm mặc định
-    const defaultGroupItem = document.createElement('div');
-    defaultGroupItem.className = 'contact-item' + (currentGroup === 'default-group' ? ' selected' : '');
-    defaultGroupItem.innerHTML = `
-        <div class="contact-avatar">
-            <i class="fas fa-users"></i>
-        </div>
-        <span>Dô la - ToanCreator</span>
-    `;
-    defaultGroupItem.addEventListener('click', () => {
-        currentGroup = 'default-group';
-        currentGroupName.textContent = 'Dô la - ToanCreator';
-        loadMessages('default-group');
-        // Cập nhật selected state
-        document.querySelectorAll('.contact-item').forEach(item => {
-            item.classList.remove('selected');
-        });
-        defaultGroupItem.classList.add('selected');
-    });
-    contactList.appendChild(defaultGroupItem);
-    
-    // Load các nhóm khác từ Firebase
     database.ref('userGroups/' + currentUser.userId).on('value', snapshot => {
+        contactList.innerHTML = '';
+        
+        // Add create/join group button
+        const addGroupItem = document.createElement('div');
+        addGroupItem.className = 'contact-item add-group';
+        addGroupItem.innerHTML = `
+            <div class="contact-avatar">
+                <i class="fas fa-plus"></i>
+            </div>
+            <span>Tạo/Tham gia nhóm</span>
+        `;
+        addGroupItem.addEventListener('click', function() {
+            if (addGroupModal) addGroupModal.style.display = 'flex';
+        });
+        contactList.appendChild(addGroupItem);
+        
+        // Add groups
         if (snapshot.exists()) {
             const groups = snapshot.val();
             Object.keys(groups).forEach(groupId => {
-                if (groupId === 'default-group') return; // Đã thêm nhóm mặc định trước đó
-                
                 const group = groups[groupId];
                 const groupItem = document.createElement('div');
-                groupItem.className = 'contact-item' + (groupId === currentGroup ? ' selected' : '');
+                groupItem.className = 'contact-item';
+                if (groupId === currentGroup) {
+                    groupItem.classList.add('selected');
+                }
                 
                 groupItem.innerHTML = `
                     <div class="contact-avatar">
@@ -402,28 +387,38 @@ function loadUserGroups() {
                     <span>${group.groupName}</span>
                 `;
                 
-                groupItem.addEventListener('click', () => {
-                    currentGroup = groupId;
-                    currentGroupName.textContent = group.groupName;
-                    loadMessages(groupId);
-                    // Cập nhật selected state
+                groupItem.addEventListener('click', function() {
+                    // Remove selected class from all items
                     document.querySelectorAll('.contact-item').forEach(item => {
                         item.classList.remove('selected');
                     });
-                    groupItem.classList.add('selected');
+                    
+                    // Add selected class to clicked item
+                    this.classList.add('selected');
+                    
+                    // Update current group and load messages
+                    currentGroup = groupId;
+                    if (currentGroupName) currentGroupName.textContent = group.groupName;
+                    loadMessages(groupId);
                 });
                 
                 contactList.appendChild(groupItem);
             });
         }
+    }, error => {
+        console.error('Error loading user groups:', error);
     });
 }
 
 // Load messages
 function loadMessages(groupId) {
+    if (!chatMessages) return;
+    
     chatMessages.innerHTML = '';
     
     database.ref('messages/' + groupId).on('value', snapshot => {
+        if (!chatMessages) return;
+        
         chatMessages.innerHTML = '';
         
         if (snapshot.exists()) {
@@ -435,14 +430,18 @@ function loadMessages(groupId) {
             
             // Scroll to bottom
             setTimeout(() => {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
             }, 100);
         }
+    }, error => {
+        console.error('Error loading messages:', error);
     });
 }
 
 // Display message
 function displayMessage(message) {
+    if (!chatMessages) return;
+    
     const messageDiv = document.createElement('div');
     
     if (message.type === 'notification') {
@@ -478,6 +477,8 @@ function displayMessage(message) {
 
 // Send message
 function sendMessage() {
+    if (!messageInput || !currentGroup) return;
+    
     const content = messageInput.value.trim();
     
     if (!content) return;
@@ -490,8 +491,13 @@ function sendMessage() {
         type: 'message'
     };
     
-    database.ref('messages/' + currentGroup).push(message);
-    messageInput.value = '';
+    database.ref('messages/' + currentGroup).push(message)
+        .then(() => {
+            if (messageInput) messageInput.value = '';
+        })
+        .catch(error => {
+            console.error('Error sending message:', error);
+        });
 }
 
 // Toggle theme
@@ -500,38 +506,23 @@ function toggleTheme() {
     localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
 }
 
-// Kiểm tra kết nối Firebase
-function checkFirebaseConnection() {
-    const connectedRef = database.ref('.info/connected');
-    connectedRef.on('value', (snap) => {
-        if (snap.val() === true) {
-            console.log('Kết nối Firebase thành công');
-        } else {
-            console.log('Mất kết nối Firebase');
-            alert('Mất kết nối server. Vui lòng tải lại trang.');
-        }
-    });
-}
-
-// Gọi hàm khi khởi động
-checkFirebaseConnection();
-
-// Gọi hàm kiểm tra khi khởi động
-checkFirebaseConnection();
-
 // Check saved theme preference
 function checkThemePreference() {
     const darkMode = localStorage.getItem('darkMode') === 'true';
     if (darkMode) {
         document.body.classList.add('dark-mode');
-        themeSwitch.checked = true;
+        if (themeSwitch) themeSwitch.checked = true;
     }
 }
 
 // Show group info
 function showGroupInfo() {
+    if (!currentGroup || !groupInfoModal) return;
+    
     database.ref('groups/' + currentGroup).once('value')
         .then(snapshot => {
+            if (!groupInfoModal) return;
+            
             if (snapshot.exists()) {
                 const group = snapshot.val();
                 
@@ -561,16 +552,21 @@ function showGroupInfo() {
             }
             
             groupInfoModal.style.display = 'flex';
+        })
+        .catch(error => {
+            console.error('Error loading group info:', error);
         });
 }
 
 // Show add member modal
 function showAddMemberModal() {
-    addMemberModal.style.display = 'flex';
+    if (addMemberModal) addMemberModal.style.display = 'flex';
 }
 
 // Show delete group modal
 function showDeleteGroupModal() {
+    if (!deleteGroupModal) return;
+    
     if (currentGroup === 'default-group') {
         alert('Không thể xoá nhóm mặc định');
         return;
@@ -581,20 +577,24 @@ function showDeleteGroupModal() {
 
 // Show admin cmd modal
 function showAdminCmdModal() {
+    if (!adminCmdModal) return;
+    
     adminCmdModal.style.display = 'flex';
     
     // Check if user is admin
     if (isAdmin) {
-        adminLoginPrompt.style.display = 'none';
-        adminCommands.style.display = 'block';
+        if (adminLoginPrompt) adminLoginPrompt.style.display = 'none';
+        if (adminCommands) adminCommands.style.display = 'block';
     } else {
-        adminLoginPrompt.style.display = 'block';
-        adminCommands.style.display = 'none';
+        if (adminLoginPrompt) adminLoginPrompt.style.display = 'block';
+        if (adminCommands) adminCommands.style.display = 'none';
     }
 }
 
 // Switch tabs
 function switchTab(tab) {
+    if (!createTab || !joinTab || !createGroupContent || !joinGroupContent) return;
+    
     if (tab === 'create') {
         createTab.classList.add('active');
         joinTab.classList.remove('active');
@@ -610,6 +610,8 @@ function switchTab(tab) {
 
 // Create group
 function createGroup() {
+    if (!newGroupName || !groupPassword) return;
+    
     const groupName = newGroupName.value.trim();
     const password = groupPassword.value.trim();
     
@@ -643,34 +645,39 @@ function createGroup() {
         creatorId: currentUser.userId,
         creatorName: currentUser.username,
         createdAt: new Date().toLocaleString('vi-VN')
+    }).then(() => {
+        // Add creator to group
+        return database.ref('groupMembers/' + groupId + '/' + currentUser.userId).set({
+            username: currentUser.username,
+            joinedAt: new Date().toLocaleString('vi-VN')
+        });
+    }).then(() => {
+        // Add group to user's groups
+        return database.ref('userGroups/' + currentUser.userId + '/' + groupId).set({
+            groupName,
+            joinedAt: new Date().toLocaleString('vi-VN')
+        });
+    }).then(() => {
+        // Clear form and close modal
+        if (newGroupName) newGroupName.value = '';
+        if (groupPassword) groupPassword.value = '';
+        if (addGroupModal) addGroupModal.style.display = 'none';
+        
+        // Switch to new group
+        currentGroup = groupId;
+        if (currentGroupName) currentGroupName.textContent = groupName;
+        loadMessages(groupId);
+        loadUserGroups();
+    }).catch(error => {
+        console.error('Error creating group:', error);
+        alert('Lỗi khi tạo nhóm');
     });
-    
-    // Add creator to group
-    database.ref('groupMembers/' + groupId + '/' + currentUser.userId).set({
-        username: currentUser.username,
-        joinedAt: new Date().toLocaleString('vi-VN')
-    });
-    
-    // Add group to user's groups
-    database.ref('userGroups/' + currentUser.userId + '/' + groupId).set({
-        groupName,
-        joinedAt: new Date().toLocaleString('vi-VN')
-    });
-    
-    // Clear form and close modal
-    newGroupName.value = '';
-    groupPassword.value = '';
-    addGroupModal.style.display = 'none';
-    
-    // Switch to new group
-    currentGroup = groupId;
-    currentGroupName.textContent = groupName;
-    loadMessages(groupId);
-    loadUserGroups();
 }
 
 // Join group
 function joinGroup() {
+    if (!groupIdInput || !joinPassword) return;
+    
     const groupId = groupIdInput.value.trim();
     const password = joinPassword.value.trim();
     
@@ -701,7 +708,7 @@ function joinGroup() {
             }
             
             // Check if user is already in the group
-            database.ref('groupMembers/' + groupId + '/' + currentUser.userId).once('value')
+            return database.ref('groupMembers/' + groupId + '/' + currentUser.userId).once('value')
                 .then(memberSnapshot => {
                     if (memberSnapshot.exists()) {
                         alert('Bạn đã tham gia nhóm này rồi');
@@ -709,44 +716,50 @@ function joinGroup() {
                     }
                     
                     // Add user to group
-                    database.ref('groupMembers/' + groupId + '/' + currentUser.userId).set({
+                    return database.ref('groupMembers/' + groupId + '/' + currentUser.userId).set({
                         username: currentUser.username,
                         joinedAt: new Date().toLocaleString('vi-VN')
+                    }).then(() => {
+                        // Add group to user's groups
+                        return database.ref('userGroups/' + currentUser.userId + '/' + groupId).set({
+                            groupName: group.name,
+                            joinedAt: new Date().toLocaleString('vi-VN')
+                        });
+                    }).then(() => {
+                        // Send notification
+                        const notification = {
+                            senderId: 'system',
+                            senderName: 'Hệ thống',
+                            content: currentUser.username + ' đã tham gia nhóm',
+                            timestamp: new Date().toLocaleString('vi-VN'),
+                            type: 'notification'
+                        };
+                        
+                        return database.ref('messages/' + groupId).push(notification);
+                    }).then(() => {
+                        // Clear form and close modal
+                        if (groupIdInput) groupIdInput.value = '';
+                        if (joinPassword) joinPassword.value = '';
+                        if (addGroupModal) addGroupModal.style.display = 'none';
+                        
+                        // Switch to joined group
+                        currentGroup = groupId;
+                        if (currentGroupName) currentGroupName.textContent = group.name;
+                        loadMessages(groupId);
+                        loadUserGroups();
                     });
-                    
-                    // Add group to user's groups
-                    database.ref('userGroups/' + currentUser.userId + '/' + groupId).set({
-                        groupName: group.name,
-                        joinedAt: new Date().toLocaleString('vi-VN')
-                    });
-                    
-                    // Send notification
-                    const notification = {
-                        senderId: 'system',
-                        senderName: 'Hệ thống',
-                        content: currentUser.username + ' đã tham gia nhóm',
-                        timestamp: new Date().toLocaleString('vi-VN'),
-                        type: 'notification'
-                    };
-                    
-                    database.ref('messages/' + groupId).push(notification);
-                    
-                    // Clear form and close modal
-                    groupIdInput.value = '';
-                    joinPassword.value = '';
-                    addGroupModal.style.display = 'none';
-                    
-                    // Switch to joined group
-                    currentGroup = groupId;
-                    currentGroupName.textContent = group.name;
-                    loadMessages(groupId);
-                    loadUserGroups();
                 });
+        })
+        .catch(error => {
+            console.error('Error joining group:', error);
+            alert('Lỗi khi tham gia nhóm');
         });
 }
 
 // Invite member
 function inviteMember() {
+    if (!memberIdInput) return;
+    
     const memberId = memberIdInput.value.trim();
     
     if (!memberId) {
@@ -765,7 +778,7 @@ function inviteMember() {
             const user = snapshot.val();
             
             // Check if user is already in the group
-            database.ref('groupMembers/' + currentGroup + '/' + memberId).once('value')
+            return database.ref('groupMembers/' + currentGroup + '/' + memberId).once('value')
                 .then(memberSnapshot => {
                     if (memberSnapshot.exists()) {
                         alert('Người dùng đã ở trong nhóm này');
@@ -773,37 +786,43 @@ function inviteMember() {
                     }
                     
                     // Add user to group
-                    database.ref('groupMembers/' + currentGroup + '/' + memberId).set({
+                    return database.ref('groupMembers/' + currentGroup + '/' + memberId).set({
                         username: user.username,
                         joinedAt: new Date().toLocaleString('vi-VN')
+                    }).then(() => {
+                        // Add group to user's groups
+                        return database.ref('userGroups/' + memberId + '/' + currentGroup).set({
+                            groupName: currentGroupName ? currentGroupName.textContent : 'Nhóm không tên',
+                            joinedAt: new Date().toLocaleString('vi-VN')
+                        });
+                    }).then(() => {
+                        // Send notification
+                        const notification = {
+                            senderId: 'system',
+                            senderName: 'Hệ thống',
+                            content: user.username + ' đã tham gia nhóm',
+                            timestamp: new Date().toLocaleString('vi-VN'),
+                            type: 'notification'
+                        };
+                        
+                        return database.ref('messages/' + currentGroup).push(notification);
+                    }).then(() => {
+                        // Clear form and close modal
+                        if (memberIdInput) memberIdInput.value = '';
+                        if (addMemberModal) addMemberModal.style.display = 'none';
                     });
-                    
-                    // Add group to user's groups
-                    database.ref('userGroups/' + memberId + '/' + currentGroup).set({
-                        groupName: currentGroupName.textContent,
-                        joinedAt: new Date().toLocaleString('vi-VN')
-                    });
-                    
-                    // Send notification
-                    const notification = {
-                        senderId: 'system',
-                        senderName: 'Hệ thống',
-                        content: user.username + ' đã tham gia nhóm',
-                        timestamp: new Date().toLocaleString('vi-VN'),
-                        type: 'notification'
-                    };
-                    
-                    database.ref('messages/' + currentGroup).push(notification);
-                    
-                    // Clear form and close modal
-                    memberIdInput.value = '';
-                    addMemberModal.style.display = 'none';
                 });
+        })
+        .catch(error => {
+            console.error('Error inviting member:', error);
+            alert('Lỗi khi mời thành viên');
         });
 }
 
 // Delete group
 function deleteGroup() {
+    if (!confirmPassword) return;
+    
     const password = confirmPassword.value.trim();
     
     if (!password) {
@@ -822,31 +841,41 @@ function deleteGroup() {
             }
             
             // Delete group
-            database.ref('groups/' + currentGroup).remove();
-            
+            return database.ref('groups/' + currentGroup).remove();
+        })
+        .then(() => {
             // Delete group members
-            database.ref('groupMembers/' + currentGroup).remove();
-            
+            return database.ref('groupMembers/' + currentGroup).remove();
+        })
+        .then(() => {
             // Delete group from users' groups
-            database.ref('userGroups').once('value')
+            return database.ref('userGroups').once('value')
                 .then(usersSnapshot => {
+                    const updates = {};
                     usersSnapshot.forEach(userSnapshot => {
-                        database.ref('userGroups/' + userSnapshot.key + '/' + currentGroup).remove();
+                        updates[`${userSnapshot.key}/${currentGroup}`] = null;
                     });
+                    return database.ref('userGroups').update(updates);
                 });
-            
+        })
+        .then(() => {
             // Delete group messages
-            database.ref('messages/' + currentGroup).remove();
-            
+            return database.ref('messages/' + currentGroup).remove();
+        })
+        .then(() => {
             // Clear form and close modal
-            confirmPassword.value = '';
-            deleteGroupModal.style.display = 'none';
+            if (confirmPassword) confirmPassword.value = '';
+            if (deleteGroupModal) deleteGroupModal.style.display = 'none';
             
             // Switch to default group
             currentGroup = 'default-group';
-            currentGroupName.textContent = 'Dô la - ToanCreator';
+            if (currentGroupName) currentGroupName.textContent = 'Dô la - ToanCreator';
             loadMessages('default-group');
             loadUserGroups();
+        })
+        .catch(error => {
+            console.error('Error deleting group:', error);
+            alert('Lỗi khi xoá nhóm');
         });
 }
 
@@ -863,10 +892,8 @@ function signInWithGoogle() {
                 isAdmin = true;
                 
                 // Update UI
-                if (adminCommands) {
-                    adminLoginPrompt.style.display = 'none';
-                    adminCommands.style.display = 'block';
-                }
+                if (adminLoginPrompt) adminLoginPrompt.style.display = 'none';
+                if (adminCommands) adminCommands.style.display = 'block';
                 
                 // Show success message
                 alert('Đăng nhập admin thành công');
@@ -883,6 +910,8 @@ function signInWithGoogle() {
 
 // Execute admin command
 function executeCommand() {
+    if (!cmdInput || !cmdOutput) return;
+    
     const command = cmdInput.value.trim();
     
     if (!command) return;
@@ -1046,11 +1075,14 @@ function executeCommand() {
             addToOutput('Lỗi: Lệnh không hợp lệ');
     }
     
-    cmdInput.value = '';
+    if (cmdInput) cmdInput.value = '';
 }
 
 // Add text to command output
+// Add text to command output
 function addToOutput(text) {
+    if (!cmdOutput) return;
+    
     const p = document.createElement('p');
     p.textContent = text;
     cmdOutput.appendChild(p);
@@ -1080,3 +1112,6 @@ document.addEventListener('DOMContentLoaded', function() {
     checkThemePreference();
     init();
 });
+
+// Make copyToClipboard available globally
+window.copyToClipboard = copyToClipboard;
