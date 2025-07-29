@@ -214,67 +214,7 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        // Firebase configuration from the user's prompt
-        const firebaseConfig = {
-            apiKey: "AIzaSyD4ja8kpnQNeWhfpgcKsbC9UNOyVC_ibyo",
-            authDomain: "toancreator-online-chat.firebaseapp.com",
-            projectId: "toancreator-online-chat",
-            storageBucket: "toancreator-online-chat.firebasestorage.app",
-            messagingSenderId: "683126416659",
-            appId: "1:683126416659:web:2fe64da2f203dac119e6e6",
-            measurementId: "G-4ZYYCLPSF5"
-        };
-
-        // Import the functions you need from the SDKs you need
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        // Global variables for Firebase and user data
-        window.db = db;
-        window.auth = auth;
-        window.GoogleAuthProvider = GoogleAuthProvider;
-        window.signInWithPopup = signInWithPopup;
-        window.signOut = signOut;
-        window.onAuthStateChanged = onAuthStateChanged;
-        window.doc = doc;
-        window.getDoc = getDoc;
-        window.setDoc = setDoc;
-        window.updateDoc = updateDoc;
-        window.deleteDoc = deleteDoc;
-        window.onSnapshot = onSnapshot;
-        window.collection = collection;
-        window.query = query;
-        window.where = where;
-        window.addDoc = addDoc;
-        window.getDocs = getDocs;
-        window.serverTimestamp = serverTimestamp;
-
-        // App ID from Canvas environment (if available)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'toancreator-online-chat';
-        window.appId = appId;
-
-        // Initial auth token from Canvas environment (if available)
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        window.initialAuthToken = initialAuthToken;
-
-        // Sign in logic
-        if (initialAuthToken) {
-            signInWithCustomToken(auth, initialAuthToken).catch((error) => {
-                console.error("Error signing in with custom token:", error);
-                signInAnonymously(auth); // Fallback to anonymous if custom token fails
-            });
-        } else {
-            signInAnonymously(auth);
-        }
-    </script>
-    <script src="js/script.js"></script>
+    <!-- Main JavaScript file (now a module) -->
+    <script type="module" src="js/script.js"></script>
 </body>
 </html>
