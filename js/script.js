@@ -115,6 +115,22 @@ function init() {
     setupEventListeners();
 }
 
+function initDefaultData() {
+    // Tạo nhóm mặc định nếu chưa tồn tại
+    database.ref('groups/default-group').once('value').then(snap => {
+        if (!snap.exists()) {
+            database.ref('groups/default-group').set({
+                name: "Dô la - ToanCreator",
+                creatorId: "system",
+                createdAt: new Date().toLocaleString('vi-VN')
+            });
+        }
+    });
+}
+
+// Gọi hàm khi khởi động
+initDefaultData();
+
 // Set up event listeners
 function setupEventListeners() {
     // Welcome screen
@@ -235,79 +251,49 @@ function showTermsModal() {
 
 // Register user
 function registerUser() {
-    const username = usernameInput.value.trim();
-    
-    if (!username) {
-        alert('Vui lòng nhập tên hợp lệ');
-        return;
-    }
-
-    // Tạo ID người dùng
-    const userIdValue = Date.now() + Math.floor(Math.random() * 1000);
-    const createdAt = new Date().toLocaleString('vi-VN');
-    
-    currentUser = {
-        username,
-        userId: userIdValue,
-        createdAt,
-        ip: userIP
-    };
-    
-    // Thêm log kiểm tra
-    console.log('Thông tin user trước khi lưu:', currentUser);
-    
     try {
-        // Lưu vào localStorage
-        localStorage.setItem('chatUser', JSON.stringify(currentUser));
-        console.log('Đã lưu vào localStorage');
+        // ... (phần code hiện có)
         
-        // Lưu vào Firebase
         database.ref('users/' + userIdValue).set({
             username,
             createdAt,
             ip: userIP
         }).then(() => {
-            console.log('Đã lưu vào Firebase thành công');
-            termsModal.style.display = 'none';
-            showChatInterface();
-            joinDefaultGroup();
+            console.log('Dữ liệu đã lưu lên Firebase');
+            
+            // Thêm delay để đảm bảo dữ liệu được xử lý
+            setTimeout(() => {
+                showChatInterface();
+                joinDefaultGroup();
+            }, 500);
+            
         }).catch(error => {
             console.error('Lỗi Firebase:', error);
-            alert('Lỗi kết nối database. Vui lòng thử lại.');
+            alert('Lỗi kết nối database. Chi tiết: ' + error.message);
         });
     } catch (e) {
         console.error('Lỗi xử lý đăng ký:', e);
-        alert('Có lỗi xảy ra khi xử lý đăng ký');
+        alert('Lỗi hệ thống: ' + e.message);
     }
 }
 
 // Show chat interface
 function showChatInterface() {
-    console.log('Đang hiển thị giao diện chat'); // Thêm log kiểm tra
-    
-    // Ẩn tất cả các màn hình khác
-    welcomeScreen.style.display = 'none';
-    registrationModal.style.display = 'none';
-    termsModal.style.display = 'none';
+    // Đảm bảo ẩn tất cả modal trước
+    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
     
     // Hiển thị giao diện chat
-    chatInterface.style.display = 'flex';
+    document.getElementById('chat-interface').style.display = 'flex';
     
-    // Đảm bảo các phần tử chính được hiển thị
+    // Đảm bảo các phần tử chính hiển thị
     document.querySelector('.sidebar').style.display = 'block';
     document.querySelector('.chat-main').style.display = 'flex';
     
-    // Cập nhật thông tin người dùng
-    if (currentUser) {
-        displayName.textContent = currentUser.username;
-        userId.textContent = 'ID: ' + currentUser.userId;
-        accountCreated.textContent = currentUser.createdAt;
-    } else {
-        console.error('Không có thông tin người dùng');
-    }
-    
-    // Load các nhóm
+    // Load dữ liệu
     loadUserGroups();
+    loadMessages(currentGroup || 'default-group');
+    
+    console.log('Giao diện chat đã được hiển thị'); // Kiểm tra log
 }
 
 // Join default group
