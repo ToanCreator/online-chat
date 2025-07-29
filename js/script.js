@@ -109,6 +109,11 @@ function init() {
     
     // Set up event listeners
     setupEventListeners();
+    firebase.initializeApp(firebaseConfig).then(() => {
+    console.log("Firebase connected successfully");
+}).catch(error => {
+    console.error("Firebase connection error:", error);
+});
 }
 
 function hideAllModals() {
@@ -255,42 +260,49 @@ function showTermsModal() {
 
 // Register user
 function registerUser() {
-    if (!usernameInput) return;
-    
+if (!database) {
+    alert('Database not initialized');
+    return;
+}
+if (!username) {
+    alert('Tên người dùng không hợp lệ');
+    return;
+}
     const username = usernameInput.value.trim();
-    
-    // Generate user ID (timestamp + random number)
     const userIdValue = Date.now() + Math.floor(Math.random() * 1000);
     const createdAt = new Date().toLocaleString('vi-VN');
-    
+
     currentUser = {
         username,
         userId: userIdValue,
         createdAt,
-        ip: userIP
+        ip: userIP || 'unknown'
     };
-    
-    // Save user to localStorage
+
+    // Thêm log để debug
+    console.log("Attempting to register user:", currentUser);
+
+    // Lưu vào localStorage trước
     try {
         localStorage.setItem('chatUser', JSON.stringify(currentUser));
+        console.log("User saved to localStorage");
     } catch (e) {
-        console.error('Error saving user to localStorage:', e);
-        alert('Lỗi khi lưu thông tin người dùng');
-        return;
+        console.error('LocalStorage error:', e);
     }
-    
-    // Save user to Firebase
+
+    // Lưu lên Firebase
     database.ref('users/' + userIdValue).set({
         username,
         createdAt,
-        ip: userIP
+        ip: currentUser.ip
     }).then(() => {
-        if (termsModal) termsModal.style.display = 'none';
+        console.log("User saved to Firebase");
+        termsModal.style.display = 'none';
         showChatInterface();
         joinDefaultGroup();
     }).catch(error => {
-        console.error('Error saving user to Firebase:', error);
-        alert('Lỗi khi đăng ký người dùng');
+        console.error('Full Firebase error:', error);
+        alert('Lỗi khi đăng ký người dùng: ' + error.message);
     });
 }
 
