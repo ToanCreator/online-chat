@@ -63,6 +63,9 @@ const memberIdInput = document.getElementById('member-id');
 const deleteGroupForm = document.getElementById('delete-group-form');
 const confirmPassword = document.getElementById('confirm-password');
 const contactList = document.querySelector('.contact-list');
+document.addEventListener('click', function(e) {
+    console.log('Clicked on:', e.target);
+});
 
 // Global variables
 let currentUser = null;
@@ -74,46 +77,62 @@ let isInitialized = false;
 // Initialize the app
 function init() {
     if (isInitialized) return;
-    isInitialized = true;
-
-    // Hide all modals first
-    hideAllModals();
-
-    // Check if user already exists in localStorage
-    const savedUser = localStorage.getItem('chatUser');
-    if (savedUser) {
-        try {
-            currentUser = JSON.parse(savedUser);
-            showChatInterface();
-            joinDefaultGroup();
-            return;
-        } catch (e) {
-            console.error('Error parsing saved user:', e);
-            localStorage.removeItem('chatUser');
+    
+    try {
+        // Kiểm tra Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig); 
+            console.log("Firebase initialized");
+            
         }
+        
+        // Khởi tạo services
+        database = firebase.database(); // Được phép gán lại
+        auth = firebase.auth(); // Được phép gán lại
+        isInitialized = true;
+
+        // Ẩn tất cả modal
+        hideAllModals();
+
+        // Kiểm tra người dùng đã lưu
+        const savedUser = safeLocalStorage.getItem('chatUser');
+        if (savedUser) {
+            try {
+                currentUser = JSON.parse(savedUser);
+                showChatInterface();
+                joinDefaultGroup();
+                return;
+            } catch (e) {
+                console.error('Error parsing saved user:', e);
+                safeLocalStorage.removeItem('chatUser');
+            }
+        }
+        
+        // Hiển thị màn hình chào
+        showWelcomeScreen();
+        
+        // Lấy IP người dùng
+        getUserIP();
+        
+        // Thiết lập sự kiện
+        setTimeout(setupEventListeners, 300);
+        
+    } catch (error) {
+        console.error("Initialization failed:", error);
+        showWelcomeScreen();
     }
-    
-    // Show welcome screen if no user
-    showWelcomeScreen();
-    
-    // Get user IP
+}
+
+// Hàm riêng để lấy IP
+function getUserIP() {
     fetch('https://api.ipify.org?format=json')
         .then(response => response.json())
         .then(data => {
-            userIP = data.ip;
+            userIP = data.ip || 'unknown';
         })
-        .catch(error => {
-            console.error('Error getting IP:', error);
+        .catch(() => {
             userIP = 'unknown';
         });
-    
-    // Set up event listeners
-    setupEventListeners();
-    firebase.initializeApp(firebaseConfig).then(() => {
-    console.log("Firebase connected successfully");
-}).catch(error => {
-    console.error("Firebase connection error:", error);
-});
 }
 
 function hideAllModals() {
@@ -123,91 +142,238 @@ function hideAllModals() {
     });
 }
 
-// Set up event listeners
-function setupEventListeners() {
-    // Welcome screen
-    startChatBtn.addEventListener('click', showRegistrationModal);
-    
-    // Registration modal
-    setupBtn.addEventListener('click', showTermsModal);
-    googleAdminBtn.addEventListener('click', signInWithGoogle);
-    
-    // Terms modal
-    agreeTermsCheckbox.addEventListener('change', function() {
-        startChatFinalBtn.disabled = !this.checked;
-        
-}); 
-
-startChatFinalBtn.addEventListener('click', registerUser);
-    
-    // Chat interface
-    if (themeSwitch) themeSwitch.addEventListener('change', toggleTheme);
-    if (sendBtn) sendBtn.addEventListener('click', sendMessage);
-    if (messageInput) {
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-    }
-    
-    // Group actions
-    if (groupInfoBtn) groupInfoBtn.addEventListener('click', showGroupInfo);
-    if (addMemberBtn) addMemberBtn.addEventListener('click', showAddMemberModal);
-    if (deleteGroupBtn) deleteGroupBtn.addEventListener('click', showDeleteGroupModal);
-    if (adminCmdBtn) adminCmdBtn.addEventListener('click', showAdminCmdModal);
-    
-    // Admin commands
-    if (adminGoogleBtn) adminGoogleBtn.addEventListener('click', signInWithGoogle);
-    if (executeCmdBtn) executeCmdBtn.addEventListener('click', executeCommand);
-    if (cmdInput) {
-        cmdInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                executeCommand();
-            }
-        });
-    }
-    
-    // Tabs
-    if (createTab) createTab.addEventListener('click', function() {
-        switchTab('create');
-    });
-    if (joinTab) joinTab.addEventListener('click', function() {
-        switchTab('join');
-    });
-    
-    // Forms
-    if (createGroupForm) createGroupForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        createGroup();
-    });
-    if (joinGroupForm) joinGroupForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        joinGroup();
-    });
-    if (addMemberForm) addMemberForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        inviteMember();
-    });
-    if (deleteGroupForm) deleteGroupForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        deleteGroup();
-    });
-    
-    // Close buttons
-    document.querySelectorAll('.close-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            this.closest('.modal').style.display = 'none';
-        });
-    });
-    
-    // Modal close when clicking outside
-    window.addEventListener('click', function(e) {
-        if (e.target.classList.contains('modal')) {
-            e.target.style.display = 'none';
-        }
-    });
+function resetApp() {
+    firebase.app().delete()
+        .then(() => {
+            console.log("Firebase app reset");
+            location.reload();
+        })
+        .catch(console.error);
 }
+
+function hardResetApp() {
+    // Xóa tất cả storage
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // Reset Firebase
+    if (firebase.apps.length) {
+        firebase.app().delete();
+    }
+    
+    // Reload trang
+    setTimeout(() => location.reload(true), 500);
+}
+
+// Thêm hàm debug này
+function debugClick(e) {
+    console.log('Clicked on:', e.target.id, 'Tag:', e.target.tagName, 'Disabled:', e.target.disabled);
+    e.stopPropagation(); // Ngăn sự kiện nổi bọt
+}
+
+// Trong setupEventListeners():
+if (startChatBtn) {
+    startChatBtn.addEventListener('click', function(e) {
+        debugClick(e);
+        showRegistrationModal();
+    });
+    // Thêm style debug
+    startChatBtn.style.border = '2px solid red'; // Chỉ để debug
+}
+
+// Gọi khi cần thiết trong console
+// hardResetApp();
+
+// Gọi khi cần thiết
+// resetApp();
+
+
+
+function setupEventListeners() {
+    try {
+        // 1. Welcome screen
+        if (startChatBtn) {
+            startChatBtn.addEventListener('click', showRegistrationModal);
+            console.log('Start chat button listener added');
+        }
+
+        // 2. Registration modal
+        if (setupBtn) {
+            setupBtn.addEventListener('click', showTermsModal);
+            console.log('Setup button listener added');
+        }
+        
+        if (googleAdminBtn) {
+            googleAdminBtn.addEventListener('click', signInWithGoogle);
+            console.log('Google admin button listener added');
+        }
+
+        // 3. Terms modal
+        if (agreeTermsCheckbox && startChatFinalBtn) {
+            agreeTermsCheckbox.addEventListener('change', function() {
+                startChatFinalBtn.disabled = !this.checked;
+            });
+            console.log('Terms checkbox listener added');
+        }
+        
+        if (startChatFinalBtn) {
+            startChatFinalBtn.addEventListener('click', registerUser);
+            console.log('Start chat final button listener added');
+        }
+
+        // 4. Chat interface
+        if (themeSwitch) {
+            themeSwitch.addEventListener('change', toggleTheme);
+            console.log('Theme switch listener added');
+        }
+        
+        if (sendBtn) {
+            sendBtn.addEventListener('click', sendMessage);
+            console.log('Send button listener added');
+        }
+        
+        if (messageInput) {
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            console.log('Message input listener added');
+        }
+
+        // 5. Group actions
+        if (groupInfoBtn) {
+            groupInfoBtn.addEventListener('click', showGroupInfo);
+            console.log('Group info button listener added');
+        }
+        
+        if (addMemberBtn) {
+            addMemberBtn.addEventListener('click', showAddMemberModal);
+            console.log('Add member button listener added');
+        }
+        
+        if (deleteGroupBtn) {
+            deleteGroupBtn.addEventListener('click', showDeleteGroupModal);
+            console.log('Delete group button listener added');
+        }
+        
+        if (adminCmdBtn) {
+            adminCmdBtn.addEventListener('click', showAdminCmdModal);
+            console.log('Admin cmd button listener added');
+        }
+
+        // 6. Admin commands
+        if (adminGoogleBtn) {
+            adminGoogleBtn.addEventListener('click', signInWithGoogle);
+            console.log('Admin Google button listener added');
+        }
+        
+        if (executeCmdBtn) {
+            executeCmdBtn.addEventListener('click', executeCommand);
+            console.log('Execute cmd button listener added');
+        }
+        
+        if (cmdInput) {
+            cmdInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    executeCommand();
+                }
+            });
+            console.log('Cmd input listener added');
+        }
+
+        // 7. Tabs
+        if (createTab) {
+            createTab.addEventListener('click', function() {
+                switchTab('create');
+            });
+            console.log('Create tab listener added');
+        }
+        
+        if (joinTab) {
+            joinTab.addEventListener('click', function() {
+                switchTab('join');
+            });
+            console.log('Join tab listener added');
+        }
+
+        // 8. Forms
+        if (createGroupForm) {
+            createGroupForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                createGroup();
+            });
+            console.log('Create group form listener added');
+        }
+        
+        if (joinGroupForm) {
+            joinGroupForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                joinGroup();
+            });
+            console.log('Join group form listener added');
+        }
+        
+        if (addMemberForm) {
+            addMemberForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                inviteMember();
+            });
+            console.log('Add member form listener added');
+        }
+        
+        if (deleteGroupForm) {
+            deleteGroupForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                deleteGroup();
+            });
+            console.log('Delete group form listener added');
+        }
+
+        // 9. Close buttons
+        document.querySelectorAll('.close-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const modal = this.closest('.modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+        console.log('Close buttons listeners added');
+
+        // 10. Modal close when clicking outside
+        window.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                e.target.style.display = 'none';
+            }
+        });
+        console.log('Modal outside click listener added');
+
+    } catch (error) {
+        console.error('Error setting up event listeners:', error);
+    }
+}
+
+// Thêm hàm này để debug click events
+function handleClickEvents(e) {
+    console.log('Clicked on:', e.target.id || e.target.className);
+    console.log('Is button disabled?:', e.target.disabled);
+    
+    // Kiểm tra nếu click không có hiệu lực
+    if (e.target.disabled) {
+        console.warn('Button is disabled:', e.target);
+        return;
+    }
+    
+    // Thêm hiệu ứng visual khi click (debug)
+    e.target.style.transform = 'scale(0.95)';
+    setTimeout(() => {
+        e.target.style.transform = '';
+    }, 100);
+}
+
+// Trong setupEventListeners():
+window.addEventListener('click', handleClickEvents);
 
 // Show welcome screen
 function showWelcomeScreen() {
@@ -220,10 +386,36 @@ function showWelcomeScreen() {
 
 // Show registration modal
 function showRegistrationModal() {
-    if (!welcomeScreen || !registrationModal) return;
+    console.log('Attempting to show registration modal');
+    
+    // Kiểm tra DOM tồn tại
+    if (!welcomeScreen || !registrationModal) {
+        console.error('Required elements not found');
+        return;
+    }
+    
+    // Thêm log để debug hiển thị
+    console.log('Current display values:',
+        'welcomeScreen:', welcomeScreen.style.display,
+        'registrationModal:', registrationModal.style.display);
+    
+    // Thực hiện thay đổi
     welcomeScreen.style.display = 'none';
     registrationModal.style.display = 'flex';
-    if (usernameInput) usernameInput.focus();
+    
+    // Kiểm tra kết quả
+    setTimeout(() => {
+        console.log('After change:',
+            'welcomeScreen:', welcomeScreen.style.display,
+            'registrationModal:', registrationModal.style.display);
+    }, 100);
+    
+    // Focus input nếu tồn tại
+    if (usernameInput) {
+        usernameInput.focus();
+    } else {
+        console.warn('usernameInput not found');
+    }
 }
 
 // Show terms modal
