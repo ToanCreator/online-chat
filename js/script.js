@@ -23,7 +23,6 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 // App ID from Canvas environment (if available)
-// These global variables are provided by the Canvas environment and should be accessible directly in a module script.
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'toancreator-online-chat';
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
@@ -72,7 +71,7 @@ const infoGroupCreationDate = document.getElementById('info-group-creation-date'
 const infoMemberCount = document.getElementById('info-member-count');
 
 const inviteUserBtn = document.getElementById('invite-user-btn');
-const inviteUserModal = document = document.getElementById('invite-user-modal');
+const inviteUserModal = document.getElementById('invite-user-modal');
 const inviteUserIdInput = document.getElementById('invite-user-id');
 const sendInviteBtn = document.getElementById('send-invite-btn');
 
@@ -101,10 +100,10 @@ let userIpAddress = 'unknown'; // Placeholder for IP address
 let activeGroupId = 'default-group'; // Default group ID
 let activeGroupData = null; // Stores data for the currently active group
 
-// Flag to indicate Firebase auth state has been initially checked
-let firebaseAuthChecked = false;
-// New flag to indicate Firebase auth is ready for registration attempts
-let isAuthReadyForRegistration = false;
+// Flags to manage Firebase and UI state
+let firebaseAuthChecked = false; // True when onAuthStateChanged has run at least once
+let isFirebaseInitialized = false; // True when Firebase app and services are initialized
+let isUserSessionLoaded = false; // True when user data (currentUser) is loaded from Firestore
 
 const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
 
@@ -210,8 +209,10 @@ async function fetchUserIpAddress() {
 // --- Firebase Authentication and User Management ---
 
 // Initial sign-in logic
-// This runs once when the script loads.
 async function initializeAuth() {
+    if (isFirebaseInitialized) return; // Prevent re-initialization
+
+    console.log("Initializing Firebase Auth...");
     try {
         if (initialAuthToken) {
             await signInWithCustomToken(auth, initialAuthToken);
@@ -220,25 +221,23 @@ async function initializeAuth() {
             await signInAnonymously(auth);
             console.log("Signed in anonymously.");
         }
+        isFirebaseInitialized = true; // Mark Firebase as initialized
     } catch (error) {
         console.error("Error during initial Firebase sign-in:", error);
         showMessageBox(`Lỗi khởi tạo đăng nhập: ${error.code || error.message}. Vui lòng kiểm tra cấu hình Firebase Auth (đặc biệt là Anonymous Authentication).`);
     }
 }
 
-// Listen for Firebase Auth state changes
-onAuthStateChanged(auth, async (user) => {
+// Function to handle UI transitions based on auth state and user data
+async function handleAuthStateAndUI(user) {
     currentUserId = user ? user.uid : null;
+    console.log("onAuthStateChanged fired. User:", user ? user.uid : "null");
 
-    // Ensure IP is fetched before attempting to load user data, but only once or if needed
     if (!userIpAddress || userIpAddress === 'unknown') {
         await fetchUserIpAddress();
     }
 
     if (user) {
-        console.log("Firebase Auth State Changed: User Logged In", currentUserId);
-
-        // Check if user is admin
         currentUserIsAdmin = adminEmails.includes(user.email);
         if (currentUserIsAdmin) {
             cmdBtn.classList.remove('hidden');
@@ -247,38 +246,41 @@ onAuthStateChanged(auth, async (user) => {
             cmdBtn.classList.add('hidden');
         }
 
-        const userLoaded = await loadUserData(currentUserId, userIpAddress); // This updates `currentUser` global
+        const userLoaded = await loadUserData(currentUserId, userIpAddress);
 
-        if (userLoaded) { // User data successfully loaded (IP matched or admin)
+        if (userLoaded) {
+            isUserSessionLoaded = true;
+            console.log("User session fully loaded. Displaying chat interface.");
             startScreen.classList.add('hidden');
             chatInterface.classList.remove('hidden');
-            toggleModal(authModal, false); // Ensure auth modal is hidden
-            toggleModal(termsModal, false); // Ensure terms modal is hidden
+            toggleModal(authModal, false);
+            toggleModal(termsModal, false);
             updateUserProfileUI();
             loadUserGroups();
             loadMessages(activeGroupId);
-        } else { // New user or IP mismatch for non-admin
-            startScreen.classList.add('hidden'); // Hide start screen
-            toggleModal(authModal, true); // Show registration modal
-            toggleModal(termsModal, false); // Ensure terms modal is hidden
-        }
-        isAuthReadyForRegistration = true; // Auth is ready, can attempt registration
-        if (agreeTermsCheckbox.checked) { // If terms already checked, enable button
-            startChatBtn.disabled = false;
-            startChatBtn.classList.remove('disabled');
+        } else {
+            // User exists in Firebase auth, but data not loaded (e.g., new user, IP mismatch for non-admin)
+            isUserSessionLoaded = false;
+            console.log("User authenticated, but session data not loaded. Showing auth modal.");
+            startScreen.classList.add('hidden');
+            toggleModal(authModal, true);
+            toggleModal(termsModal, false);
         }
     } else {
-        // User is signed out or not yet signed in (anonymous sign-in is handled by initial firebase.js script)
-        console.log("Firebase Auth State Changed: User Logged Out / Not Logged In");
-        startScreen.classList.add('hidden'); // Hide start screen
-        toggleModal(authModal, true); // Show registration modal
-        toggleModal(termsModal, false); // Ensure terms modal is hidden
-        isAuthReadyForRegistration = false; // Auth is not ready
-        startChatBtn.disabled = true; // Disable button
-        startChatBtn.classList.add('disabled');
+        // User is logged out or initial anonymous sign-in failed
+        isUserSessionLoaded = false;
+        console.log("User logged out or not authenticated. Showing auth modal.");
+        startScreen.classList.add('hidden');
+        toggleModal(authModal, true);
+        toggleModal(termsModal, false);
     }
-    firebaseAuthChecked = true; // Mark Firebase auth as initially checked
-});
+    firebaseAuthChecked = true; // Mark Firebase auth as checked
+    // Re-evaluate startChatBtn state after auth check
+    updateStartChatButtonState();
+}
+
+// Listen for Firebase Auth state changes
+onAuthStateChanged(auth, handleAuthStateAndUI);
 
 /**
  * Loads user data from Firestore based on UID or IP.
@@ -293,17 +295,13 @@ async function loadUserData(uid, ip) {
 
         if (userDocSnap.exists()) {
             const userData = userDocSnap.data();
-            // Check if IP matches (for basic short-term IP-based account persistence)
-            if (userData.ipAddress === ip || currentUserIsAdmin) { // Admins bypass IP check
+            if (userData.ipAddress === ip || currentUserIsAdmin) {
                 currentUser = userData;
                 currentUserName = currentUser.name;
                 console.log("Existing user data loaded:", currentUser);
                 return true;
             } else {
                 console.warn("IP address mismatch for existing user. Treating as new session.");
-                // If IP doesn't match, treat as new session for non-admin users
-                // This means they won't automatically log in with their old profile
-                // and will be prompted to register again.
                 currentUser = null;
                 return false;
             }
@@ -332,7 +330,6 @@ async function registerUser(name) {
     }
 
     try {
-        // Check if an account already exists for this IP
         const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
         const q = query(usersCollectionRef, where('profile.data.ipAddress', '==', userIpAddress));
         const querySnapshot = await getDocs(q);
@@ -345,15 +342,14 @@ async function registerUser(name) {
 
         const newUserData = {
             name: name,
-            id: currentUserId, // Use Firebase UID as user ID
+            id: currentUserId,
             ipAddress: userIpAddress,
             createdAt: serverTimestamp(),
-            groups: ['default-group'], // Automatically join default group
+            groups: ['default-group'],
             isAdmin: false,
-            isPaused: false, // For admin commands
+            isPaused: false,
         };
 
-        // Store user profile data
         const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data');
         await setDoc(userProfileDocRef, newUserData);
         console.log("User profile saved successfully.");
@@ -361,7 +357,6 @@ async function registerUser(name) {
         currentUser = newUserData;
         currentUserName = name;
 
-        // Add user to the default group's members list
         const defaultGroupRef = doc(db, `artifacts/${appId}/public/data/groups`, 'default-group');
         const defaultGroupSnap = await getDoc(defaultGroupRef);
 
@@ -375,30 +370,27 @@ async function registerUser(name) {
                 console.log("User added to default group members.");
             }
         } else {
-            // Create default group if it doesn't exist
             await setDoc(defaultGroupRef, {
                 name: 'Dô la - ToanCreator',
-                creatorId: 'admin', // Placeholder admin ID
+                creatorId: 'admin',
                 creatorName: 'Toàn Creator ✅',
                 id: 'default-group',
                 createdAt: serverTimestamp(),
                 members: [currentUserId],
                 isPublic: true,
-                password: null, // No password for default group
+                password: null,
             });
             console.log("Default group created and user added.");
         }
 
-        // --- UI Transition after successful registration ---
-        toggleModal(termsModal, false); // Hide terms modal
-        startScreen.classList.add('hidden'); // Hide start screen
-        chatInterface.classList.remove('hidden'); // Show chat interface
+        toggleModal(termsModal, false);
+        startScreen.classList.add('hidden');
+        chatInterface.classList.remove('hidden');
 
         updateUserProfileUI();
         loadUserGroups();
-        await loadMessages(activeGroupId); // Ensure messages are loaded before sending system message
+        await loadMessages(activeGroupId);
 
-        // Send system message about new user joining
         await sendSystemMessage(activeGroupId, `${name} vừa tham gia nhóm.`);
         showMessageBox("Đăng kí thành công! Chào mừng bạn đến với Dô La Chat.");
 
@@ -438,9 +430,8 @@ function loadUserGroups() {
         if (docSnap.exists()) {
             const userData = docSnap.data();
             const groups = userData.groups || [];
-            contactList.querySelectorAll('.group-item:not(.create-join-group)').forEach(el => el.remove()); // Clear existing groups except default and create/join button
+            contactList.querySelectorAll('.group-item:not(.create-join-group)').forEach(el => el.remove());
 
-            // Add default group if not present (should always be there)
             if (!groups.includes('default-group')) {
                 groups.unshift('default-group');
             }
@@ -455,7 +446,7 @@ function loadUserGroups() {
                         groupItem.classList.add('contact-item', 'group-item');
                         if (groupId === activeGroupId) {
                             groupItem.classList.add('active');
-                            groupNameDisplay.textContent = groupData.name; // Update header
+                            groupNameDisplay.textContent = groupData.name;
                         }
                         groupItem.dataset.groupId = groupId;
                         groupItem.innerHTML = `
@@ -484,13 +475,11 @@ function loadUserGroups() {
 async function switchGroup(groupId, groupName) {
     if (activeGroupId === groupId) return;
 
-    // Remove active class from current group
     const currentActive = document.querySelector(`.group-item.active`);
     if (currentActive) {
         currentActive.classList.remove('active');
     }
 
-    // Add active class to new group
     const newActive = document.querySelector(`.group-item[data-group-id="${groupId}"]`);
     if (newActive) {
         newActive.classList.add('active');
@@ -498,10 +487,9 @@ async function switchGroup(groupId, groupName) {
 
     activeGroupId = groupId;
     groupNameDisplay.textContent = groupName;
-    chatMessages.innerHTML = ''; // Clear existing messages
-    await loadMessages(groupId); // Load messages for the new group
+    chatMessages.innerHTML = '';
+    await loadMessages(groupId);
 
-    // Fetch and store active group data for modal info
     const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId);
     try {
         const groupSnap = await getDoc(groupDocRef);
@@ -532,31 +520,28 @@ function loadMessages(groupId) {
         }
 
         const messagesCollectionRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
-        const q = query(messagesCollectionRef); // No orderBy to avoid index issues
+        const q = query(messagesCollectionRef);
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            chatMessages.innerHTML = ''; // Clear messages before re-rendering
+            chatMessages.innerHTML = '';
             const messages = [];
             snapshot.forEach(doc => {
                 messages.push({ id: doc.id, ...doc.data() });
             });
 
-            // Sort messages by timestamp client-side
             messages.sort((a, b) => (a.timestamp && b.timestamp) ? a.timestamp.toDate() - b.timestamp.toDate() : 0);
 
             messages.forEach(msg => {
                 displayMessage(msg);
             });
-            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
-            resolve(); // Resolve the promise once messages are loaded
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            resolve();
         }, (error) => {
             console.error("Error loading messages: ", error);
             showMessageBox(`Lỗi khi tải tin nhắn: ${error.code || error.message}.`);
             reject(error);
         });
 
-        // Store unsubscribe function if needed later, e.g., when switching groups
-        // This is a simplified example, in a full app you'd manage multiple listeners.
         window.currentMessageUnsubscribe = unsubscribe;
     });
 }
@@ -581,12 +566,12 @@ function displayMessage(message) {
     } else if (message.senderId === 'admin') {
         messageBubble.classList.add('admin');
         senderInfoHtml = `<span class="admin-name">Toàn Creator ✅</span>`;
-        messageTextClass += ' italic'; // Italicize admin messages
+        messageTextClass += ' italic';
     } else if (message.type === 'system') {
         messageBubble.classList.add('system-message');
         messageBubble.textContent = message.text;
         chatMessages.appendChild(messageBubble);
-        return; // System messages are simpler
+        return;
     } else {
         messageBubble.classList.add('received');
         senderInfoHtml = `
@@ -604,7 +589,6 @@ function displayMessage(message) {
     `;
     chatMessages.appendChild(messageBubble);
 
-    // Add event listener for copy ID button
     const copyIdBtn = messageBubble.querySelector('.copy-id-btn');
     if (copyIdBtn) {
         copyIdBtn.addEventListener('click', (e) => {
@@ -641,7 +625,6 @@ async function sendMessage() {
         return;
     }
 
-    // Check if user is paused (only if not admin)
     if (!currentUserIsAdmin && currentUser.isPaused) {
         showMessageBox("Tài khoản của bạn đã bị tạm khóa chức năng chat bởi Admin.");
         return;
@@ -658,8 +641,8 @@ async function sendMessage() {
     try {
         const messagesCollectionRef = collection(db, `artifacts/${appId}/public/data/groups/${activeGroupId}/messages`);
         await addDoc(messagesCollectionRef, newMessage);
-        messageInput.value = ''; // Clear input
-        chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+        messageInput.value = '';
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     } catch (e) {
         console.error("Error sending message: ", e);
         showMessageBox(`Lỗi khi gửi tin nhắn: ${e.code || e.message}. Vui lòng thử lại.`);
@@ -691,22 +674,24 @@ async function sendSystemMessage(groupId, message) {
 // --- Event Listeners ---
 
 chatNowBtn.addEventListener('click', async () => {
-    // If Firebase auth state has been checked, and currentUser is null,
-    // it means the user is not logged in or their IP didn't match an existing profile.
-    // In this case, we should show the auth modal.
-    if (firebaseAuthChecked && !currentUser) {
-        toggleModal(authModal, true);
-    } else if (firebaseAuthChecked && currentUser) {
-        // If already logged in, just ensure the chat interface is visible
+    console.log("Chat Now button clicked.");
+    if (!firebaseAuthChecked) {
+        showMessageBox("Hệ thống đang khởi tạo xác thực, vui lòng đợi giây lát.");
+        console.log("Firebase auth not yet checked when Chat Now button clicked.");
+        return;
+    }
+
+    if (isUserSessionLoaded) {
+        console.log("User session already loaded. Showing chat interface.");
         startScreen.classList.add('hidden');
         chatInterface.classList.remove('hidden');
-        updateUserProfileUI();
-        loadUserGroups();
-        loadMessages(activeGroupId);
+        toggleModal(authModal, false);
+        toggleModal(termsModal, false);
     } else {
-        // If auth state hasn't been checked yet, show a loading message.
-        // The onAuthStateChanged listener will eventually handle the display.
-        showMessageBox("Hệ thống đang khởi tạo, vui lòng đợi giây lát.");
+        console.log("User session not loaded. Showing auth modal.");
+        startScreen.classList.add('hidden');
+        toggleModal(authModal, true);
+        toggleModal(termsModal, false);
     }
 });
 
@@ -734,38 +719,37 @@ setupBtn.addEventListener('click', () => {
         return;
     }
 
-    // In a real application, you'd send recaptchaResponse to your server for verification.
-    // For this client-side demo, we'll just proceed if a response is present.
     console.log("reCAPTCHA response:", recaptchaResponse);
 
     toggleModal(authModal, false);
     toggleModal(termsModal, true);
-    // When terms modal is shown, check current auth state to enable/disable start button
-    if (isAuthReadyForRegistration && agreeTermsCheckbox.checked) {
-        startChatBtn.disabled = false;
-        startChatBtn.classList.remove('disabled');
-    } else {
-        startChatBtn.disabled = true;
-        startChatBtn.classList.add('disabled');
-    }
+    // Update button state immediately after showing terms modal
+    updateStartChatButtonState();
 });
 
 agreeTermsCheckbox.addEventListener('change', () => {
-    if (agreeTermsCheckbox.checked && isAuthReadyForRegistration) {
+    updateStartChatButtonState();
+});
+
+function updateStartChatButtonState() {
+    if (agreeTermsCheckbox.checked && firebaseAuthChecked && currentUserId) {
         startChatBtn.disabled = false;
         startChatBtn.classList.remove('disabled');
+        console.log("Start Chat button enabled.");
     } else {
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
+        console.log("Start Chat button disabled. Checked:", agreeTermsCheckbox.checked, "AuthChecked:", firebaseAuthChecked, "UserId:", currentUserId);
     }
-});
+}
+
 
 startChatBtn.addEventListener('click', async () => {
+    console.log("Start Chat button clicked.");
     if (!agreeTermsCheckbox.checked) {
         showMessageBox("Bạn phải đồng ý với các điều khoản để bắt đầu.");
         return;
     }
-    // IMPORTANT: Check if currentUserId is available before attempting to register
     if (!currentUserId) {
         showMessageBox("Hệ thống đang chờ xác thực người dùng. Vui lòng đợi một lát rồi thử lại, hoặc tải lại trang.");
         console.warn("Attempted to register user, but currentUserId is null. Firebase auth might not be ready yet.");
@@ -779,19 +763,19 @@ startChatBtn.addEventListener('click', async () => {
 googleLoginBtn.addEventListener('click', async () => {
     const provider = new GoogleAuthProvider();
     try {
+        console.log("Attempting Google login...");
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         console.log("Google Login User:", user.email);
 
         if (adminEmails.includes(user.email)) {
             currentUserIsAdmin = true;
-            // Admin users bypass IP check and always load their profile
-            await loadUserData(user.uid, userIpAddress); // Load or create admin profile
-            if (!currentUser) { // If admin profile doesn't exist, create it
+            await loadUserData(user.uid, userIpAddress);
+            if (!currentUser) {
                 const newAdminData = {
                     name: user.displayName || "Admin",
                     id: user.uid,
-                    ipAddress: userIpAddress, // Store current IP for admin too
+                    ipAddress: userIpAddress,
                     createdAt: serverTimestamp(),
                     groups: ['default-group'],
                     isAdmin: true,
@@ -803,7 +787,6 @@ googleLoginBtn.addEventListener('click', async () => {
                 currentUserName = newAdminData.name;
                 console.log("Admin profile created:", newAdminData);
             } else {
-                // Ensure existing admin profile has isAdmin: true
                 if (!currentUser.isAdmin) {
                     const adminProfileDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'data');
                     await updateDoc(adminProfileDocRef, { isAdmin: true });
@@ -817,10 +800,10 @@ googleLoginBtn.addEventListener('click', async () => {
             updateUserProfileUI();
             loadUserGroups();
             loadMessages(activeGroupId);
-            cmdBtn.classList.remove('hidden'); // Show CMD button for admin
+            cmdBtn.classList.remove('hidden');
             showMessageBox("Đăng nhập Admin thành công!");
         } else {
-            await signOut(auth); // Sign out non-admin Google users
+            await signOut(auth);
             showMessageBox("Bạn không có quyền Admin để đăng nhập bằng Google.");
         }
     } catch (error) {
@@ -832,7 +815,7 @@ googleLoginBtn.addEventListener('click', async () => {
 sendMessageBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault(); // Prevent new line
+        e.preventDefault();
         sendMessage();
     }
 });
@@ -855,6 +838,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Call initial auth setup when DOM is ready
     initializeAuth();
+    // Initial state for the Start Chat button
+    updateStartChatButtonState();
 });
 
 
@@ -862,7 +847,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 createJoinGroupBtn.addEventListener('click', () => {
     toggleModal(createJoinGroupModal, true);
-    // Hide forms initially
     createGroupForm.classList.add('hidden');
     joinGroupForm.classList.add('hidden');
 });
@@ -902,7 +886,7 @@ createGroupBtn.addEventListener('click', async () => {
         id: newGroupId,
         createdAt: serverTimestamp(),
         members: [currentUser.id],
-        isPublic: false, // New groups are private by default, can be joined by ID
+        isPublic: false,
         password: groupPassword,
     };
 
@@ -910,18 +894,17 @@ createGroupBtn.addEventListener('click', async () => {
         const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, newGroupId);
         await setDoc(groupDocRef, groupData);
 
-        // Add group to user's group list
         const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.id}/profile`, 'data');
         await updateDoc(userProfileDocRef, {
             groups: [...(currentUser.groups || []), newGroupId]
         });
-        currentUser.groups = [...(currentUser.groups || []), newGroupId]; // Update local state
+        currentUser.groups = [...(currentUser.groups || []), newGroupId];
 
         showMessageBox("Nhóm đã được tạo thành công!");
         toggleModal(createJoinGroupModal, false);
         newGroupNameInput.value = '';
         newGroupPasswordInput.value = '';
-        switchGroup(newGroupId, groupName); // Switch to the newly created group
+        switchGroup(newGroupId, groupName);
 
         await sendSystemMessage(newGroupId, `${currentUser.name} đã tạo nhóm "${groupName}".`);
 
@@ -958,22 +941,20 @@ joinGroupBtn.addEventListener('click', async () => {
                 return;
             }
 
-            // Add user to group's members list
             await updateDoc(groupDocRef, {
                 members: [...currentMembers, currentUser.id]
             });
 
-            // Add group to user's group list
             const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.id}/profile`, 'data');
             await updateDoc(userProfileDocRef, {
                 groups: [...(currentUser.groups || []), groupIdToJoin]
             });
-            currentUser.groups = [...(currentUser.groups || []), groupIdToJoin]; // Update local state
+            currentUser.groups = [...(currentUser.groups || []), groupIdToJoin];
 
             showMessageBox(`Đã tham gia nhóm "${groupData.name}" thành công!`);
             toggleModal(createJoinGroupModal, false);
             joinGroupIdInput.value = '';
-            switchGroup(groupIdToJoin, groupData.name); // Switch to the joined group
+            switchGroup(groupIdToJoin, groupData.name);
 
             await sendSystemMessage(groupIdToJoin, `${currentUser.name} vừa tham gia nhóm.`);
 
@@ -992,13 +973,14 @@ groupInfoBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Ensure activeGroupData is up-to-date
     const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId);
     try {
         const groupSnap = await getDoc(groupDocRef);
         if (groupSnap.exists()) {
             activeGroupData = groupSnap.data();
         } else {
+            activeGroupData = null;
+            console.warn("Active group data not found for:", groupId);
             showMessageBox("Không tìm thấy thông tin nhóm.");
             return;
         }
@@ -1007,7 +989,6 @@ groupInfoBtn.addEventListener('click', async () => {
         showMessageBox(`Lỗi khi tải thông tin nhóm: ${error.code || error.message}.`);
         return;
     }
-
 
     infoGroupName.textContent = activeGroupData.name;
     infoGroupCreator.textContent = activeGroupData.creatorName;
@@ -1038,7 +1019,6 @@ sendInviteBtn.addEventListener('click', async () => {
     }
 
     try {
-        // Check if the invited user exists
         const invitedUserProfileRef = doc(db, `artifacts/${appId}/users/${inviteUserId}/profile`, 'data');
         const invitedUserSnap = await getDoc(invitedUserProfileRef);
 
@@ -1055,18 +1035,16 @@ sendInviteBtn.addEventListener('click', async () => {
             return;
         }
 
-        // Add group to invited user's group list
         await updateDoc(invitedUserProfileRef, {
             groups: [...invitedUserGroups, activeGroupId]
         });
 
-        // Add invited user to current group's members list
         const currentGroupMembers = activeGroupData.members || [];
         if (!currentGroupMembers.includes(inviteUserId)) {
             await updateDoc(doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId), {
                 members: [...currentGroupMembers, inviteUserId]
             });
-            activeGroupData.members.push(inviteUserId); // Update local state
+            activeGroupData.members.push(inviteUserId);
         }
 
         showMessageBox(`Đã gửi lời mời đến ${invitedUserData.name} thành công!`);
@@ -1106,17 +1084,15 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     }
 
     try {
-        // Delete all messages in the group
         const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${activeGroupId}/messages`);
         const q = query(messagesRef);
         const snapshot = await getDocs(q);
-        const batch = db.batch(); // Use batch for multiple deletes
+        const batch = db.batch();
         snapshot.forEach((doc) => {
             batch.delete(doc.ref);
         });
         await batch.commit();
 
-        // Remove group from all members' group lists
         const members = activeGroupData.members || [];
         for (const memberId of members) {
             const memberProfileRef = doc(db, `artifacts/${appId}/users/${memberId}/profile`, 'data');
@@ -1128,14 +1104,12 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
             }
         }
 
-        // Delete the group document itself
         await deleteDoc(doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId));
 
         showMessageBox(`Nhóm "${activeGroupData.name}" đã được xóa thành công!`);
         toggleModal(deleteGroupModal, false);
         deleteGroupPasswordInput.value = '';
 
-        // Switch back to default group
         switchGroup('default-group', 'Dô la - ToanCreator');
 
     } catch (e) {
@@ -1158,7 +1132,7 @@ function generateCmdKeyboard() {
         const button = document.createElement('button');
         button.textContent = cmd;
         button.addEventListener('click', () => {
-            cmdInput.value = cmd + ' '; // Add space for parameters
+            cmdInput.value = cmd + ' ';
             cmdInput.focus();
         });
         cmdKeyboard.appendChild(button);
@@ -1185,12 +1159,12 @@ cmdInput.addEventListener('keypress', (e) => {
 
 async function executeAdminCommand() {
     const command = cmdInput.value.trim();
-    cmdInput.value = ''; // Clear input
-    cmdOutput.textContent += `\n> ${command}\n`; // Display command in output
+    cmdInput.value = '';
+    cmdOutput.textContent += `\n> ${command}\n`;
 
     const parts = command.split(/\s+/);
     const cmd = parts[0];
-    const targetId = parts[1]; // For user/group IDs
+    const targetId = parts[1];
 
     try {
         switch (cmd) {
@@ -1232,7 +1206,7 @@ async function executeAdminCommand() {
         console.error("CMD execution error:", e);
         cmdOutput.textContent += `Lỗi thực thi lệnh: ${e.code || e.message || e}\n`;
     }
-    cmdOutput.scrollTop = cmdOutput.scrollHeight; // Scroll to bottom
+    cmdOutput.scrollTop = cmdOutput.scrollHeight;
 }
 
 async function toggleUserPause(userId, pause) {
@@ -1247,13 +1221,11 @@ async function toggleUserPause(userId, pause) {
 }
 
 async function clearMessages(targetId) {
-    // Determine if targetId is a user or a group
-    // For simplicity, assume if it's a group ID, it's a group. Otherwise, a user.
     const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, targetId);
     try {
         const groupSnap = await getDoc(groupRef);
 
-        if (groupSnap.exists()) { // It's a group
+        if (groupSnap.exists()) {
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${targetId}/messages`);
             const q = query(messagesRef);
             const snapshot = await getDocs(q);
@@ -1264,7 +1236,7 @@ async function clearMessages(targetId) {
             await batch.commit();
             cmdOutput.textContent += `Đã xóa tất cả tin nhắn trong nhóm ${targetId}.\n`;
             await sendSystemMessage(targetId, `Admin đã xóa tất cả tin nhắn trong nhóm này.`);
-        } else { // Assume it's a user ID
+        } else {
             const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
             const groupsSnapshot = await getDocs(usersCollectionRef);
 
@@ -1367,7 +1339,6 @@ async function banUser(userId) {
     }
 
     try {
-        // 1. Remove user from all groups
         const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
         const groupsSnapshot = await getDocs(groupsCollectionRef);
 
@@ -1378,10 +1349,8 @@ async function banUser(userId) {
             await updateDoc(groupRef, { members: updatedMembers });
         }
 
-        // 2. Delete all messages sent by the user
-        await clearMessages(userId); // Re-use clearMessages for user's messages
+        await clearMessages(userId);
 
-        // 3. Delete user's profile document
         const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
         await deleteDoc(userProfileRef);
 
