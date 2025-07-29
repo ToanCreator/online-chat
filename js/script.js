@@ -207,18 +207,21 @@ async function fetchUserIpAddress() {
 
 // --- Firebase Authentication and User Management ---
 
-// Sign in logic (moved from index.html)
-if (initialAuthToken) {
-    signInWithCustomToken(auth, initialAuthToken).catch((error) => {
-        console.error("Error signing in with custom token:", error);
-        showMessageBox(`Lỗi đăng nhập Firebase: ${error.code || error.message}. Vui lòng kiểm tra cấu hình Firebase Auth.`);
-        signInAnonymously(auth); // Fallback to anonymous if custom token fails
-    });
-} else {
-    signInAnonymously(auth).catch((error) => {
-        console.error("Error signing in anonymously:", error);
-        showMessageBox(`Lỗi đăng nhập ẩn danh: ${error.code || error.message}. Vui lòng đảm bảo Anonymous Auth đã được bật trong Firebase.`);
-    });
+// Initial sign-in logic
+// This runs once when the script loads.
+async function initializeAuth() {
+    try {
+        if (initialAuthToken) {
+            await signInWithCustomToken(auth, initialAuthToken);
+            console.log("Signed in with custom token.");
+        } else {
+            await signInAnonymously(auth);
+            console.log("Signed in anonymously.");
+        }
+    } catch (error) {
+        console.error("Error during initial Firebase sign-in:", error);
+        showMessageBox(`Lỗi khởi tạo đăng nhập: ${error.code || error.message}. Vui lòng kiểm tra cấu hình Firebase Auth (đặc biệt là Anonymous Authentication).`);
+    }
 }
 
 // Listen for Firebase Auth state changes
@@ -315,7 +318,7 @@ async function loadUserData(uid, ip) {
  */
 async function registerUser(name) {
     if (!currentUserId) {
-        showMessageBox("Lỗi đăng kí: Không tìm thấy ID người dùng. Vui lòng thử lại.");
+        showMessageBox("Lỗi đăng kí: Không tìm thấy ID người dùng. Vui lòng thử lại sau ít phút hoặc tải lại trang.");
         console.error("Registration Error: currentUserId is null.");
         return;
     }
@@ -746,6 +749,13 @@ startChatBtn.addEventListener('click', async () => {
         showMessageBox("Bạn phải đồng ý với các điều khoản để bắt đầu.");
         return;
     }
+    // IMPORTANT: Check if currentUserId is available before attempting to register
+    if (!currentUserId) {
+        showMessageBox("Hệ thống đang chờ xác thực người dùng. Vui lòng đợi một lát rồi thử lại, hoặc tải lại trang.");
+        console.warn("Attempted to register user, but currentUserId is null. Firebase auth might not be ready yet.");
+        return;
+    }
+
     const fullName = fullNameInput.value.trim();
     await registerUser(fullName);
 });
@@ -827,6 +837,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.add('dark-theme');
         themeSwitch.checked = true;
     }
+    // Call initial auth setup when DOM is ready
+    initializeAuth();
 });
 
 
@@ -1229,7 +1241,7 @@ async function clearMessages(targetId) {
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${targetId}/messages`);
             const q = query(messagesRef);
             const snapshot = await getDocs(q);
-            const batch = db.batch(); // Use batch for multiple deletes
+            const batch = db.batch();
             snapshot.forEach((doc) => {
                 batch.delete(doc.ref);
             });
