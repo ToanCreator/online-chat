@@ -72,7 +72,7 @@ const infoGroupCreationDate = document.getElementById('info-group-creation-date'
 const infoMemberCount = document.getElementById('info-member-count');
 
 const inviteUserBtn = document.getElementById('invite-user-btn');
-const inviteUserModal = document.getElementById('invite-user-modal');
+const inviteUserModal = document = document.getElementById('invite-user-modal');
 const inviteUserIdInput = document.getElementById('invite-user-id');
 const sendInviteBtn = document.getElementById('send-invite-btn');
 
@@ -103,6 +103,8 @@ let activeGroupData = null; // Stores data for the currently active group
 
 // Flag to indicate Firebase auth state has been initially checked
 let firebaseAuthChecked = false;
+// New flag to indicate Firebase auth is ready for registration attempts
+let isAuthReadyForRegistration = false;
 
 const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
 
@@ -260,14 +262,20 @@ onAuthStateChanged(auth, async (user) => {
             toggleModal(authModal, true); // Show registration modal
             toggleModal(termsModal, false); // Ensure terms modal is hidden
         }
+        isAuthReadyForRegistration = true; // Auth is ready, can attempt registration
+        if (agreeTermsCheckbox.checked) { // If terms already checked, enable button
+            startChatBtn.disabled = false;
+            startChatBtn.classList.remove('disabled');
+        }
     } else {
         // User is signed out or not yet signed in (anonymous sign-in is handled by initial firebase.js script)
         console.log("Firebase Auth State Changed: User Logged Out / Not Logged In");
-        // If the user is explicitly signed out or not logged in, we should show the auth modal.
-        // This state is also reached if initial anonymous sign-in fails.
         startScreen.classList.add('hidden'); // Hide start screen
         toggleModal(authModal, true); // Show registration modal
         toggleModal(termsModal, false); // Ensure terms modal is hidden
+        isAuthReadyForRegistration = false; // Auth is not ready
+        startChatBtn.disabled = true; // Disable button
+        startChatBtn.classList.add('disabled');
     }
     firebaseAuthChecked = true; // Mark Firebase auth as initially checked
 });
@@ -732,10 +740,18 @@ setupBtn.addEventListener('click', () => {
 
     toggleModal(authModal, false);
     toggleModal(termsModal, true);
+    // When terms modal is shown, check current auth state to enable/disable start button
+    if (isAuthReadyForRegistration && agreeTermsCheckbox.checked) {
+        startChatBtn.disabled = false;
+        startChatBtn.classList.remove('disabled');
+    } else {
+        startChatBtn.disabled = true;
+        startChatBtn.classList.add('disabled');
+    }
 });
 
 agreeTermsCheckbox.addEventListener('change', () => {
-    if (agreeTermsCheckbox.checked) {
+    if (agreeTermsCheckbox.checked && isAuthReadyForRegistration) {
         startChatBtn.disabled = false;
         startChatBtn.classList.remove('disabled');
     } else {
