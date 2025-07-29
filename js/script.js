@@ -72,7 +72,15 @@ let userIP = null;
 
 // Initialize the app
 function init() {
-    // Check if user already exists in localStorage
+    // Kiểm tra theme
+    checkThemePreference();
+    
+    // Ẩn tất cả modal khi khởi động
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.style.display = 'none';
+    });
+
+    // Kiểm tra nếu user đã đăng nhập
     const savedUser = localStorage.getItem('chatUser');
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
@@ -82,7 +90,7 @@ function init() {
         showWelcomeScreen();
     }
     
-    // Get user IP
+    // Lấy địa chỉ IP
     fetch('https://api.ipify.org?format=json')
         .then(response => response.json())
         .then(data => {
@@ -93,7 +101,6 @@ function init() {
             userIP = 'unknown';
         });
     
-    // Set up event listeners
     setupEventListeners();
 }
 
@@ -219,7 +226,12 @@ function showTermsModal() {
 function registerUser() {
     const username = usernameInput.value.trim();
     
-    // Generate user ID (timestamp + random number)
+    if (!username) {
+        alert('Vui lòng nhập tên hợp lệ');
+        return;
+    }
+
+    // Tạo ID người dùng
     const userIdValue = Date.now() + Math.floor(Math.random() * 1000);
     const createdAt = new Date().toLocaleString('vi-VN');
     
@@ -230,34 +242,47 @@ function registerUser() {
         ip: userIP
     };
     
-    // Save user to localStorage
+    // Lưu vào localStorage
     localStorage.setItem('chatUser', JSON.stringify(currentUser));
     
-    // Save user to Firebase
+    // Lưu vào Firebase
     database.ref('users/' + userIdValue).set({
         username,
         createdAt,
         ip: userIP
+    }).then(() => {
+        // Đóng modal điều khoản
+        termsModal.style.display = 'none';
+        
+        // Hiển thị giao diện chat
+        showChatInterface();
+        
+        // Tham gia nhóm mặc định
+        joinDefaultGroup();
+    }).catch(error => {
+        console.error('Lỗi khi đăng ký:', error);
+        alert('Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.');
     });
-    
-    termsModal.style.display = 'none';
-    showChatInterface();
-    joinDefaultGroup();
 }
 
 // Show chat interface
 function showChatInterface() {
+    // Ẩn tất cả các màn hình trước
     welcomeScreen.style.display = 'none';
     registrationModal.style.display = 'none';
     termsModal.style.display = 'none';
+    
+    // Hiển thị giao diện chat
     chatInterface.style.display = 'flex';
     
-    // Update user info
-    displayName.textContent = currentUser.username;
-    userId.textContent = 'ID: ' + currentUser.userId;
-    accountCreated.textContent = currentUser.createdAt;
+    // Cập nhật thông tin người dùng
+    if (currentUser) {
+        displayName.textContent = currentUser.username;
+        userId.textContent = 'ID: ' + currentUser.userId;
+        accountCreated.textContent = currentUser.createdAt;
+    }
     
-    // Load user groups
+    // Load các nhóm của người dùng
     loadUserGroups();
 }
 
@@ -267,23 +292,23 @@ function joinDefaultGroup() {
     currentGroup = defaultGroupId;
     currentGroupName.textContent = 'Dô la - ToanCreator';
     
-    // Check if user is already in the group
+    // Kiểm tra nếu user đã trong nhóm
     database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId).once('value')
         .then(snapshot => {
             if (!snapshot.exists()) {
-                // Add user to group
+                // Thêm user vào nhóm
                 database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId).set({
                     username: currentUser.username,
                     joinedAt: new Date().toLocaleString('vi-VN')
                 });
                 
-                // Add group to user's groups
+                // Thêm nhóm vào userGroups
                 database.ref('userGroups/' + currentUser.userId + '/' + defaultGroupId).set({
                     groupName: 'Dô la - ToanCreator',
                     joinedAt: new Date().toLocaleString('vi-VN')
                 });
                 
-                // Send welcome message
+                // Gửi thông báo chào mừng
                 const welcomeMessage = {
                     senderId: 'system',
                     senderName: 'Hệ thống',
@@ -291,44 +316,67 @@ function joinDefaultGroup() {
                     timestamp: new Date().toLocaleString('vi-VN'),
                     type: 'notification'
                 };
-                
                 database.ref('messages/' + defaultGroupId).push(welcomeMessage);
             }
             
-            // Load messages
+            // Load tin nhắn
             loadMessages(defaultGroupId);
+        })
+        .catch(error => {
+            console.error('Lỗi khi tham gia nhóm mặc định:', error);
         });
 }
 
 // Load user groups
 function loadUserGroups() {
-    database.ref('userGroups/' + currentUser.userId).on('value', snapshot => {
-        contactList.innerHTML = '';
-        
-        // Add create/join group button
-        const addGroupItem = document.createElement('div');
-        addGroupItem.className = 'contact-item add-group';
-        addGroupItem.innerHTML = `
-            <div class="contact-avatar">
-                <i class="fas fa-plus"></i>
-            </div>
-            <span>Tạo/Tham gia nhóm</span>
-        `;
-        addGroupItem.addEventListener('click', function() {
-            addGroupModal.style.display = 'flex';
+    // Xóa danh sách nhóm cũ
+    contactList.innerHTML = '';
+    
+    // Thêm nút tạo/tham gia nhóm
+    const addGroupItem = document.createElement('div');
+    addGroupItem.className = 'contact-item add-group';
+    addGroupItem.innerHTML = `
+        <div class="contact-avatar">
+            <i class="fas fa-plus"></i>
+        </div>
+        <span>Tạo/Tham gia nhóm</span>
+    `;
+    addGroupItem.addEventListener('click', () => {
+        addGroupModal.style.display = 'flex';
+    });
+    contactList.appendChild(addGroupItem);
+    
+    // Luôn thêm nhóm mặc định
+    const defaultGroupItem = document.createElement('div');
+    defaultGroupItem.className = 'contact-item' + (currentGroup === 'default-group' ? ' selected' : '');
+    defaultGroupItem.innerHTML = `
+        <div class="contact-avatar">
+            <i class="fas fa-users"></i>
+        </div>
+        <span>Dô la - ToanCreator</span>
+    `;
+    defaultGroupItem.addEventListener('click', () => {
+        currentGroup = 'default-group';
+        currentGroupName.textContent = 'Dô la - ToanCreator';
+        loadMessages('default-group');
+        // Cập nhật selected state
+        document.querySelectorAll('.contact-item').forEach(item => {
+            item.classList.remove('selected');
         });
-        contactList.appendChild(addGroupItem);
-        
-        // Add groups
+        defaultGroupItem.classList.add('selected');
+    });
+    contactList.appendChild(defaultGroupItem);
+    
+    // Load các nhóm khác từ Firebase
+    database.ref('userGroups/' + currentUser.userId).on('value', snapshot => {
         if (snapshot.exists()) {
             const groups = snapshot.val();
             Object.keys(groups).forEach(groupId => {
+                if (groupId === 'default-group') return; // Đã thêm nhóm mặc định trước đó
+                
                 const group = groups[groupId];
                 const groupItem = document.createElement('div');
-                groupItem.className = 'contact-item';
-                if (groupId === currentGroup) {
-                    groupItem.classList.add('selected');
-                }
+                groupItem.className = 'contact-item' + (groupId === currentGroup ? ' selected' : '');
                 
                 groupItem.innerHTML = `
                     <div class="contact-avatar">
@@ -337,19 +385,15 @@ function loadUserGroups() {
                     <span>${group.groupName}</span>
                 `;
                 
-                groupItem.addEventListener('click', function() {
-                    // Remove selected class from all items
-                    document.querySelectorAll('.contact-item').forEach(item => {
-                        item.classList.remove('selected');
-                    });
-                    
-                    // Add selected class to clicked item
-                    this.classList.add('selected');
-                    
-                    // Update current group and load messages
+                groupItem.addEventListener('click', () => {
                     currentGroup = groupId;
                     currentGroupName.textContent = group.groupName;
                     loadMessages(groupId);
+                    // Cập nhật selected state
+                    document.querySelectorAll('.contact-item').forEach(item => {
+                        item.classList.remove('selected');
+                    });
+                    groupItem.classList.add('selected');
                 });
                 
                 contactList.appendChild(groupItem);
