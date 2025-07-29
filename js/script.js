@@ -85,7 +85,7 @@ const adminCmdModal = document.getElementById('admin-cmd-modal');
 const cmdInput = document.getElementById('cmd-input');
 const executeCmdBtn = document.getElementById('execute-cmd-btn');
 const cmdOutput = document.getElementById('cmd-output');
-const cmdKeyboard = document = document.getElementById('cmd-keyboard');
+const cmdKeyboard = document.getElementById('cmd-keyboard');
 
 const messageBox = document.getElementById('message-box');
 const messageBoxText = document.getElementById('message-box-text');
@@ -220,22 +220,19 @@ async function initializeAuth() {
         let userCredential;
         if (initialAuthToken) {
             userCredential = await signInWithCustomToken(auth, initialAuthToken);
-            console.log("Signed in with custom token. User UID:", userCredential.user.uid, "Email:", userCredential.user.email);
+            console.log("signInWithCustomToken SUCCESS. User UID:", userCredential.user.uid, "Email:", userCredential.user.email);
         } else {
             userCredential = await signInAnonymously(auth);
-            console.log("Signed in anonymously. User UID:", userCredential.user.uid);
+            console.log("signInAnonymously SUCCESS. User UID:", userCredential.user.uid);
         }
         isFirebaseInitialized = true; // Mark Firebase as initialized
-        // Manually trigger handleAuthStateAndUI if onAuthStateChanged doesn't fire immediately
-        // This is a fallback, onAuthStateChanged should ideally handle it.
-        if (userCredential && userCredential.user) {
-            handleAuthStateAndUI(userCredential.user);
-        }
+        // onAuthStateChanged will be triggered by Firebase SDK automatically
     } catch (error) {
         console.error("Error during initial Firebase sign-in (initializeAuth):", error);
         showMessageBox(`Lỗi khởi tạo đăng nhập: ${error.code || error.message}. Vui lòng kiểm tra cấu hình Firebase Auth (đặc biệt là Anonymous Authentication).`);
         isFirebaseInitialized = true; // Still mark as initialized to avoid infinite loops, but with error
-        handleAuthStateAndUI(null); // Ensure UI state is updated to show auth modal
+        // If initial sign-in fails, onAuthStateChanged will be called with null user.
+        // We ensure UI state is updated by onAuthStateChanged.
     }
 }
 
@@ -855,8 +852,6 @@ document.addEventListener('DOMContentLoaded', () => {
         themeSwitch.checked = true;
     }
     initializeAuth();
-    // Initial state for the Start Chat button is handled by onAuthStateChanged now.
-    // No need to call updateStartChatButtonState() here initially, as it will be called by onAuthStateChanged.
 });
 
 
@@ -1005,8 +1000,7 @@ groupInfoBtn.addEventListener('click', async () => {
         console.error("Error fetching group info:", error);
         showMessageBox(`Lỗi khi tải thông tin nhóm: ${error.code || error.message}.`);
     }
-}
-);
+});
 
 inviteUserBtn.addEventListener('click', () => {
     if (!activeGroupId) {
