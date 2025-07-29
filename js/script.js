@@ -1,1343 +1,1269 @@
-// Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyCCdfy0t-EFhx4vTaoKLPWga76mUofHCXA",
-    authDomain: "toancreator-online-study.firebaseapp.com",
-    projectId: "toancreator-online-study",
-    storageBucket: "toancreator-online-study.appspot.com",
-    messagingSenderId: "904765786415",
-    appId: "1:904765786415:web:8beccb1c80a8f462d6b9da"
-};
+// Ensure Firebase variables are available globally from index.html script
+const db = window.db;
+const auth = window.auth;
+const GoogleAuthProvider = window.GoogleAuthProvider;
+const signInWithPopup = window.signInWithPopup;
+const signOut = window.signOut;
+const onAuthStateChanged = window.onAuthStateChanged;
+const doc = window.doc;
+const getDoc = window.getDoc;
+const setDoc = window.setDoc;
+const updateDoc = window.updateDoc;
+const deleteDoc = window.deleteDoc;
+const onSnapshot = window.onSnapshot;
+const collection = window.collection;
+const query = window.query;
+const where = window.where;
+const addDoc = window.addDoc;
+const getDocs = window.getDocs;
+const serverTimestamp = window.serverTimestamp;
+const appId = window.appId;
+const initialAuthToken = window.initialAuthToken;
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
-const auth = firebase.auth();
-
-// DOM elements
-const welcomeScreen = document.getElementById('welcome-screen');
-const startChatBtn = document.getElementById('start-chat-btn');
-const registrationModal = document.getElementById('registration-modal');
-const registrationForm = document.getElementById('registration-form');
-const usernameInput = document.getElementById('username');
-const setupBtn = document.getElementById('setup-btn');
-const googleAdminBtn = document.getElementById('google-admin-btn');
+// --- DOM Elements ---
+const startScreen = document.getElementById('start-screen');
+const chatNowBtn = document.getElementById('chat-now-btn');
+const authModal = document.getElementById('auth-modal');
 const termsModal = document.getElementById('terms-modal');
-const agreeTermsCheckbox = document.getElementById('agree-terms');
-const startChatFinalBtn = document.getElementById('start-chat-final-btn');
 const chatInterface = document.getElementById('chat-interface');
+const fullNameInput = document.getElementById('full-name');
+const setupBtn = document.getElementById('setup-btn');
+const googleLoginBtn = document.getElementById('google-login-btn');
+const agreeTermsCheckbox = document.getElementById('agree-terms');
+const startChatBtn = document.getElementById('start-chat-btn');
+const closeButtons = document.querySelectorAll('.close-button');
+const userNameDisplay = document.querySelector('.user-name');
+const userIdDisplay = document.querySelector('.user-id');
+const accountCreationTimeDisplay = document.querySelector('.account-creation-time');
 const themeSwitch = document.getElementById('theme-switch');
-const displayName = document.getElementById('display-name');
-const userId = document.getElementById('user-id');
-const accountCreated = document.getElementById('account-created');
-const currentGroupName = document.getElementById('current-group-name');
 const chatMessages = document.getElementById('chat-messages');
 const messageInput = document.getElementById('message-input');
-const sendBtn = document.getElementById('send-btn');
+const sendMessageBtn = document.getElementById('send-message-btn');
+const groupNameDisplay = document.querySelector('.group-name-display');
+const contactList = document.querySelector('.contact-list');
+const createJoinGroupBtn = document.querySelector('.create-join-group');
+const uploadImageBtn = document.getElementById('upload-image-btn');
+
+// Chat interface modals and buttons
+const createJoinGroupModal = document.getElementById('create-join-group-modal');
+const showCreateGroupFormBtn = document.getElementById('show-create-group-form');
+const showJoinGroupFormBtn = document.getElementById('show-join-group-form');
+const createGroupForm = document.getElementById('create-group-form');
+const joinGroupForm = document.getElementById('join-group-form');
+const newGroupNameInput = document.getElementById('new-group-name');
+const newGroupPasswordInput = document.getElementById('new-group-password');
+const createGroupBtn = document.getElementById('create-group-btn');
+const joinGroupIdInput = document.getElementById('join-group-id');
+const joinGroupBtn = document.getElementById('join-group-btn');
+
 const groupInfoBtn = document.getElementById('group-info-btn');
-const addMemberBtn = document.getElementById('add-member-btn');
-const deleteGroupBtn = document.getElementById('delete-group-btn');
-const adminCmdBtn = document.getElementById('admin-cmd-btn');
 const groupInfoModal = document.getElementById('group-info-modal');
-const addGroupModal = document.getElementById('add-group-modal');
-const addMemberModal = document.getElementById('add-member-modal');
+const infoGroupName = document.getElementById('info-group-name');
+const infoGroupCreator = document.getElementById('info-group-creator');
+const infoGroupId = document.getElementById('info-group-id');
+const infoGroupCreationDate = document.getElementById('info-group-creation-date');
+const infoMemberCount = document.getElementById('info-member-count');
+
+const inviteUserBtn = document.getElementById('invite-user-btn');
+const inviteUserModal = document.getElementById('invite-user-modal');
+const inviteUserIdInput = document.getElementById('invite-user-id');
+const sendInviteBtn = document.getElementById('send-invite-btn');
+
+const deleteGroupBtn = document.getElementById('delete-group-btn');
 const deleteGroupModal = document.getElementById('delete-group-modal');
+const deleteGroupPasswordInput = document.getElementById('delete-group-password');
+const confirmDeleteGroupBtn = document.getElementById('confirm-delete-group-btn');
+
+const cmdBtn = document.getElementById('cmd-btn');
 const adminCmdModal = document.getElementById('admin-cmd-modal');
-const adminGoogleBtn = document.getElementById('admin-google-btn');
 const cmdInput = document.getElementById('cmd-input');
 const executeCmdBtn = document.getElementById('execute-cmd-btn');
 const cmdOutput = document.getElementById('cmd-output');
-const adminLoginPrompt = document.getElementById('admin-login-prompt');
-const adminCommands = document.getElementById('admin-commands');
-const createTab = document.getElementById('create-tab');
-const joinTab = document.getElementById('join-tab');
-const createGroupContent = document.getElementById('create-group-content');
-const joinGroupContent = document.getElementById('join-group-content');
-const createGroupForm = document.getElementById('create-group-form');
-const joinGroupForm = document.getElementById('join-group-form');
-const newGroupName = document.getElementById('new-group-name');
-const groupPassword = document.getElementById('group-password');
-const groupIdInput = document.getElementById('group-id');
-const joinPassword = document.getElementById('join-password');
-const addMemberForm = document.getElementById('add-member-form');
-const memberIdInput = document.getElementById('member-id');
-const deleteGroupForm = document.getElementById('delete-group-form');
-const confirmPassword = document.getElementById('confirm-password');
-const contactList = document.querySelector('.contact-list');
-document.addEventListener('click', function(e) {
-    console.log('Clicked on:', e.target);
-});
+const cmdKeyboard = document.getElementById('cmd-keyboard');
 
-// Global variables
+const messageBox = document.getElementById('message-box');
+const messageBoxText = document.getElementById('message-box-text');
+const messageBoxOkBtn = document.getElementById('message-box-ok-btn');
+
+// --- Global Variables ---
 let currentUser = null;
-let currentGroup = null;
-let isAdmin = false;
-let userIP = null;
-let isInitialized = false;
+let currentUserId = null;
+let currentUserName = null;
+let currentUserIsAdmin = false;
+let userIpAddress = 'unknown'; // Placeholder for IP address
+let activeGroupId = 'default-group'; // Default group ID
+let activeGroupData = null; // Stores data for the currently active group
+let firebaseInitialized = false; // Flag to ensure Firebase is ready
 
-// Initialize the app
-function init() {
-    if (isInitialized) return;
-    
-    try {
-        // Kiểm tra Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig); 
-            console.log("Firebase initialized");
-            
+const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
+
+// --- Utility Functions ---
+
+/**
+ * Displays a custom message box.
+ * @param {string} message - The message to display.
+ */
+function showMessageBox(message) {
+    messageBoxText.textContent = message;
+    messageBox.style.display = 'flex';
+}
+
+/**
+ * Hides the custom message box.
+ */
+function hideMessageBox() {
+    messageBox.style.display = 'none';
+}
+
+messageBoxOkBtn.addEventListener('click', hideMessageBox);
+
+/**
+ * Toggles the visibility of a modal.
+ * @param {HTMLElement} modalElement - The modal element to toggle.
+ * @param {boolean} show - True to show, false to hide.
+ */
+function toggleModal(modalElement, show) {
+    modalElement.style.display = show ? 'flex' : 'none';
+    if (!show) {
+        // Reset reCAPTCHA when modal is closed
+        if (typeof grecaptcha !== 'undefined' && modalElement.id === 'auth-modal') {
+            grecaptcha.reset();
         }
-        
-        // Khởi tạo services
-        database = firebase.database(); // Được phép gán lại
-        auth = firebase.auth(); // Được phép gán lại
-        isInitialized = true;
-
-        // Ẩn tất cả modal
-        hideAllModals();
-
-        // Kiểm tra người dùng đã lưu
-        const savedUser = safeLocalStorage.getItem('chatUser');
-        if (savedUser) {
-            try {
-                currentUser = JSON.parse(savedUser);
-                showChatInterface();
-                joinDefaultGroup();
-                return;
-            } catch (e) {
-                console.error('Error parsing saved user:', e);
-                safeLocalStorage.removeItem('chatUser');
-            }
-        }
-        
-        // Hiển thị màn hình chào
-        showWelcomeScreen();
-        
-        // Lấy IP người dùng
-        getUserIP();
-        
-        // Thiết lập sự kiện
-        setTimeout(setupEventListeners, 300);
-        
-    } catch (error) {
-        console.error("Initialization failed:", error);
-        showWelcomeScreen();
     }
 }
 
-// Hàm riêng để lấy IP
-function getUserIP() {
-    fetch('https://api.ipify.org?format=json')
-        .then(response => response.json())
-        .then(data => {
-            userIP = data.ip || 'unknown';
-        })
-        .catch(() => {
-            userIP = 'unknown';
-        });
-}
-
-function hideAllModals() {
-    const modals = document.querySelectorAll('.modal');
-    modals.forEach(modal => {
-        modal.style.display = 'none';
+// Close buttons for all modals
+closeButtons.forEach(button => {
+    button.addEventListener('click', (event) => {
+        const modal = event.target.closest('.modal');
+        if (modal) {
+            toggleModal(modal, false);
+        }
     });
-}
-
-function resetApp() {
-    firebase.app().delete()
-        .then(() => {
-            console.log("Firebase app reset");
-            location.reload();
-        })
-        .catch(console.error);
-}
-
-function hardResetApp() {
-    // Xóa tất cả storage
-    localStorage.clear();
-    sessionStorage.clear();
-    
-    // Reset Firebase
-    if (firebase.apps.length) {
-        firebase.app().delete();
-    }
-    
-    // Reload trang
-    setTimeout(() => location.reload(true), 500);
-}
-
-// Thêm hàm debug này
-function debugClick(e) {
-    console.log('Clicked on:', e.target.id, 'Tag:', e.target.tagName, 'Disabled:', e.target.disabled);
-    e.stopPropagation(); // Ngăn sự kiện nổi bọt
-}
-
-// Trong setupEventListeners():
-if (startChatBtn) {
-    startChatBtn.addEventListener('click', function(e) {
-        debugClick(e);
-        showRegistrationModal();
-    });
-    // Thêm style debug
-    startChatBtn.style.border = '2px solid red'; // Chỉ để debug
-}
-
-// Gọi khi cần thiết trong console
-// hardResetApp();
-
-// Gọi khi cần thiết
-// resetApp();
-
-
-
-function setupEventListeners() {
-    try {
-        // 1. Welcome screen
-        if (startChatBtn) {
-            startChatBtn.addEventListener('click', showRegistrationModal);
-            console.log('Start chat button listener added');
-        }
-
-        // 2. Registration modal
-        if (setupBtn) {
-            setupBtn.addEventListener('click', showTermsModal);
-            console.log('Setup button listener added');
-        }
-        
-        if (googleAdminBtn) {
-            googleAdminBtn.addEventListener('click', signInWithGoogle);
-            console.log('Google admin button listener added');
-        }
-
-        // 3. Terms modal - Phiên bản sửa lỗi
-        if (agreeTermsCheckbox && startChatFinalBtn) {
-            // Đảm bảo nút disabled ban đầu
-            startChatFinalBtn.disabled = true;
-            // Xử lý sự kiện checkbox
-            agreeTermsCheckbox.addEventListener('change', function() {
-                const isChecked = this.checked;
-                startChatFinalBtn.disabled = !isChecked;
-                console.log('Terms checkbox:', isChecked);
-                
-            });
-            
-            // Xử lý sự kiện click nút
-            startChatFinalBtn.addEventListener('click', function(e) {
-                console.log('Final start button clicked');
-                
-                // Kiểm tra lại checkbox (đề phòng)
-                if (!agreeTermsCheckbox.checked) {
-                    alert('Vui lòng đồng ý với điều khoản trước khi tiếp tục');
-                    return;
-                   
-                }
-                
-                // Thêm hiệu ứng loading
-                startChatFinalBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
-                startChatFinalBtn.disabled = true;
-                // Gọi hàm đăng ký
-                registerUser();
-               
-            });
-            console.log('Terms section initialized');
-}
-
-        // 4. Chat interface
-        if (themeSwitch) {
-            themeSwitch.addEventListener('change', toggleTheme);
-            console.log('Theme switch listener added');
-        }
-        
-        if (sendBtn) {
-            sendBtn.addEventListener('click', sendMessage);
-            console.log('Send button listener added');
-        }
-        
-        if (messageInput) {
-            messageInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    sendMessage();
-                }
-            });
-            console.log('Message input listener added');
-        }
-
-        // 5. Group actions
-        if (groupInfoBtn) {
-            groupInfoBtn.addEventListener('click', showGroupInfo);
-            console.log('Group info button listener added');
-        }
-        
-        if (addMemberBtn) {
-            addMemberBtn.addEventListener('click', showAddMemberModal);
-            console.log('Add member button listener added');
-        }
-        
-        if (deleteGroupBtn) {
-            deleteGroupBtn.addEventListener('click', showDeleteGroupModal);
-            console.log('Delete group button listener added');
-        }
-        
-        if (adminCmdBtn) {
-            adminCmdBtn.addEventListener('click', showAdminCmdModal);
-            console.log('Admin cmd button listener added');
-        }
-
-        // 6. Admin commands
-        if (adminGoogleBtn) {
-            adminGoogleBtn.addEventListener('click', signInWithGoogle);
-            console.log('Admin Google button listener added');
-        }
-        
-        if (executeCmdBtn) {
-            executeCmdBtn.addEventListener('click', executeCommand);
-            console.log('Execute cmd button listener added');
-        }
-        
-        if (cmdInput) {
-            cmdInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    executeCommand();
-                }
-            });
-            console.log('Cmd input listener added');
-        }
-
-        // 7. Tabs
-        if (createTab) {
-            createTab.addEventListener('click', function() {
-                switchTab('create');
-            });
-            console.log('Create tab listener added');
-        }
-        
-        if (joinTab) {
-            joinTab.addEventListener('click', function() {
-                switchTab('join');
-            });
-            console.log('Join tab listener added');
-        }
-
-        // 8. Forms
-        if (createGroupForm) {
-            createGroupForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                createGroup();
-            });
-            console.log('Create group form listener added');
-        }
-        
-        if (joinGroupForm) {
-            joinGroupForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                joinGroup();
-            });
-            console.log('Join group form listener added');
-        }
-        
-        if (addMemberForm) {
-            addMemberForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                inviteMember();
-            });
-            console.log('Add member form listener added');
-        }
-        
-        if (deleteGroupForm) {
-            deleteGroupForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                deleteGroup();
-            });
-            console.log('Delete group form listener added');
-        }
-
-        // 9. Close buttons
-        document.querySelectorAll('.close-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const modal = this.closest('.modal');
-                if (modal) {
-                    modal.style.display = 'none';
-                }
-            });
-        });
-        console.log('Close buttons listeners added');
-
-        // 10. Modal close when clicking outside
-        window.addEventListener('click', function(e) {
-            if (e.target.classList.contains('modal')) {
-                e.target.style.display = 'none';
-            }
-        });
-        console.log('Modal outside click listener added');
-
-    } catch (error) {
-        console.error('Error setting up event listeners:', error);
-    }
-}
-
-// Thêm hàm này để debug click events
-function handleClickEvents(e) {
-    console.log('Clicked on:', e.target.id || e.target.className);
-    console.log('Is button disabled?:', e.target.disabled);
-    
-    // Kiểm tra nếu click không có hiệu lực
-    if (e.target.disabled) {
-        console.warn('Button is disabled:', e.target);
-        return;
-    }
-    
-    // Thêm hiệu ứng visual khi click (debug)
-    e.target.style.transform = 'scale(0.95)';
-    setTimeout(() => {
-        e.target.style.transform = '';
-    }, 100);
-}
-
-// Trong setupEventListeners():
-window.addEventListener('click', handleClickEvents);
-
-// Show welcome screen
-function showWelcomeScreen() {
-    hideAllModals();
-    if (welcomeScreen) welcomeScreen.style.display = 'flex';
-    if (registrationModal) registrationModal.style.display = 'none';
-    if (termsModal) termsModal.style.display = 'none';
-    if (chatInterface) chatInterface.style.display = 'none';
-}
-
-// Show registration modal
-function showRegistrationModal() {
-    console.log('Attempting to show registration modal');
-    
-    // Kiểm tra DOM tồn tại
-    if (!welcomeScreen || !registrationModal) {
-        console.error('Required elements not found');
-        return;
-    }
-    
-    // Thêm log để debug hiển thị
-    console.log('Current display values:',
-        'welcomeScreen:', welcomeScreen.style.display,
-        'registrationModal:', registrationModal.style.display);
-    
-    // Thực hiện thay đổi
-    welcomeScreen.style.display = 'none';
-    registrationModal.style.display = 'flex';
-    
-    // Kiểm tra kết quả
-    setTimeout(() => {
-        console.log('After change:',
-            'welcomeScreen:', welcomeScreen.style.display,
-            'registrationModal:', registrationModal.style.display);
-    }, 100);
-    
-    // Focus input nếu tồn tại
-    if (usernameInput) {
-        usernameInput.focus();
-    } else {
-        console.warn('usernameInput not found');
-    }
-}
-
-// Show terms modal
-function showTermsModal() {
-    if (!usernameInput) return;
-    
-    const username = usernameInput.value.trim();
-    let recaptchaResponse = '';
-    
-    try {
-        recaptchaResponse = grecaptcha.getResponse();
-    } catch (e) {
-        console.error('reCAPTCHA error:', e);
-    }
-    
-    if (!username) {
-        alert('Vui lòng nhập Họ và Tên');
-        return;
-    }
-    
-    if (username.length > 20) {
-        alert('Họ và Tên không được vượt quá 20 ký tự');
-        return;
-    }
-    
-    if (!recaptchaResponse) {
-        alert('Vui lòng xác minh bạn không phải là robot');
-        return;
-    }
-    
-    if (registrationModal) registrationModal.style.display = 'none';
-    if (termsModal) termsModal.style.display = 'flex';
-}
-
-// Register user
-function registerUser() {
-if (!database) {
-    alert('Database not initialized');
-    return;
-}
-if (!username) {
-    alert('Tên người dùng không hợp lệ');
-    return;
-}
-    const username = usernameInput.value.trim();
-    const userIdValue = Date.now() + Math.floor(Math.random() * 1000);
-    const createdAt = new Date().toLocaleString('vi-VN');
-
-    currentUser = {
-        username,
-        userId: userIdValue,
-        createdAt,
-        ip: userIP || 'unknown'
-    };
-
-    // Thêm log để debug
-    console.log("Attempting to register user:", currentUser);
-
-    // Lưu vào localStorage trước
-    try {
-        localStorage.setItem('chatUser', JSON.stringify(currentUser));
-        console.log("User saved to localStorage");
-    } catch (e) {
-        console.error('LocalStorage error:', e);
-    }
-
-    // Lưu lên Firebase
-    database.ref('users/' + userIdValue).set({
-        username,
-        createdAt,
-        ip: currentUser.ip
-    }).then(() => {
-        console.log("User saved to Firebase");
-        termsModal.style.display = 'none';
-        showChatInterface();
-        joinDefaultGroup();
-    }).catch(error => {
-        console.error('Full Firebase error:', error);
-        alert('Lỗi khi đăng ký người dùng: ' + error.message);
-    });
-}
-
-// Show chat interface
-function showChatInterface() {
-    hideAllModals();
-    if (welcomeScreen) welcomeScreen.style.display = 'none';
-    if (chatInterface) chatInterface.style.display = 'flex';
-    
-    // Update user info
-    if (displayName) displayName.textContent = currentUser.username;
-    if (userId) userId.textContent = 'ID: ' + currentUser.userId;
-    if (accountCreated) accountCreated.textContent = currentUser.createdAt;
-    
-    // Load user groups
-    loadUserGroups();
-}
-
-// Join default group
-function joinDefaultGroup() {
-    const defaultGroupId = 'default-group';
-    currentGroup = defaultGroupId;
-    if (currentGroupName) currentGroupName.textContent = 'Dô la - ToanCreator';
-    
-    // Check if user is already in the group
-    database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId).once('value')
-        .then(snapshot => {
-            if (!snapshot.exists()) {
-                // Add user to group
-                database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId).set({
-                    username: currentUser.username,
-                    joinedAt: new Date().toLocaleString('vi-VN')
-                });
-                
-                // Add group to user's groups
-                database.ref('userGroups/' + currentUser.userId + '/' + defaultGroupId).set({
-                    groupName: 'Dô la - ToanCreator',
-                    joinedAt: new Date().toLocaleString('vi-VN')
-                });
-                
-                // Send welcome message
-                const welcomeMessage = {
-                    senderId: 'system',
-                    senderName: 'Hệ thống',
-                    content: currentUser.username + ' đã tham gia nhóm',
-                    timestamp: new Date().toLocaleString('vi-VN'),
-                    type: 'notification'
-                };
-                
-                database.ref('messages/' + defaultGroupId).push(welcomeMessage);
-            }
-            
-            // Load messages
-            loadMessages(defaultGroupId);
-        }).catch(error => {
-            console.error('Error joining default group:', error);
-        });
-}
-
-// Load user groups
-function loadUserGroups() {
-    if (!contactList) return;
-    
-    database.ref('userGroups/' + currentUser.userId).on('value', snapshot => {
-        contactList.innerHTML = '';
-        
-        // Add create/join group button
-        const addGroupItem = document.createElement('div');
-        addGroupItem.className = 'contact-item add-group';
-        addGroupItem.innerHTML = `
-            <div class="contact-avatar">
-                <i class="fas fa-plus"></i>
-            </div>
-            <span>Tạo/Tham gia nhóm</span>
-        `;
-        addGroupItem.addEventListener('click', function() {
-            if (addGroupModal) addGroupModal.style.display = 'flex';
-        });
-        contactList.appendChild(addGroupItem);
-        
-        // Add groups
-        if (snapshot.exists()) {
-            const groups = snapshot.val();
-            Object.keys(groups).forEach(groupId => {
-                const group = groups[groupId];
-                const groupItem = document.createElement('div');
-                groupItem.className = 'contact-item';
-                if (groupId === currentGroup) {
-                    groupItem.classList.add('selected');
-                }
-                
-                groupItem.innerHTML = `
-                    <div class="contact-avatar">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <span>${group.groupName}</span>
-                `;
-                
-                groupItem.addEventListener('click', function() {
-                    // Remove selected class from all items
-                    document.querySelectorAll('.contact-item').forEach(item => {
-                        item.classList.remove('selected');
-                    });
-                    
-                    // Add selected class to clicked item
-                    this.classList.add('selected');
-                    
-                    // Update current group and load messages
-                    currentGroup = groupId;
-                    if (currentGroupName) currentGroupName.textContent = group.groupName;
-                    loadMessages(groupId);
-                });
-                
-                contactList.appendChild(groupItem);
-            });
-        }
-    }, error => {
-        console.error('Error loading user groups:', error);
-    });
-}
-
-// Load messages
-function loadMessages(groupId) {
-    if (!chatMessages) return;
-    
-    chatMessages.innerHTML = '';
-    
-    database.ref('messages/' + groupId).on('value', snapshot => {
-        if (!chatMessages) return;
-        
-        chatMessages.innerHTML = '';
-        
-        if (snapshot.exists()) {
-            const messages = snapshot.val();
-            Object.keys(messages).forEach(messageId => {
-                const message = messages[messageId];
-                displayMessage(message);
-            });
-            
-            // Scroll to bottom
-            setTimeout(() => {
-                if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
-            }, 100);
-        }
-    }, error => {
-        console.error('Error loading messages:', error);
-    });
-}
-
-// Display message
-function displayMessage(message) {
-    if (!chatMessages) return;
-    
-    const messageDiv = document.createElement('div');
-    
-    if (message.type === 'notification') {
-        // Notification message
-        messageDiv.className = 'notification';
-        messageDiv.textContent = message.content;
-    } else {
-        // Regular message
-        messageDiv.className = 'message';
-        
-        if (message.senderId === currentUser.userId) {
-            messageDiv.classList.add('sent');
-        } else if (message.senderId === 'admin') {
-            messageDiv.classList.add('admin');
-        } else {
-            messageDiv.classList.add('received');
-        }
-        
-        const isAdminMessage = message.senderId === 'admin';
-        
-        messageDiv.innerHTML = `
-            <div class="message-info">
-                <span class="message-user ${isAdminMessage ? 'admin' : ''}">${message.senderName}</span>
-                <span class="message-id" onclick="copyToClipboard('${message.senderId}')">ID: ${message.senderId}</span>
-                <span class="message-time">${message.timestamp}</span>
-            </div>
-            <div class="message-content">${message.content}</div>
-        `;
-    }
-    
-    chatMessages.appendChild(messageDiv);
-}
-
-// Send message
-function sendMessage() {
-    if (!messageInput || !currentGroup) return;
-    
-    const content = messageInput.value.trim();
-    
-    if (!content) return;
-    
-    const message = {
-        senderId: currentUser.userId,
-        senderName: currentUser.username,
-        content,
-        timestamp: new Date().toLocaleString('vi-VN'),
-        type: 'message'
-    };
-    
-    database.ref('messages/' + currentGroup).push(message)
-        .then(() => {
-            if (messageInput) messageInput.value = '';
-        })
-        .catch(error => {
-            console.error('Error sending message:', error);
-        });
-}
-
-// Toggle theme
-function toggleTheme() {
-    document.body.classList.toggle('dark-mode');
-    localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
-}
-
-// Check saved theme preference
-function checkThemePreference() {
-    const darkMode = localStorage.getItem('darkMode') === 'true';
-    if (darkMode) {
-        document.body.classList.add('dark-mode');
-        if (themeSwitch) themeSwitch.checked = true;
-    }
-}
-
-// Show group info
-function showGroupInfo() {
-    if (!currentGroup || !groupInfoModal) return;
-    
-    database.ref('groups/' + currentGroup).once('value')
-        .then(snapshot => {
-            if (!groupInfoModal) return;
-            
-            if (snapshot.exists()) {
-                const group = snapshot.val();
-                
-                document.getElementById('info-group-name').textContent = group.name;
-                document.getElementById('info-group-creator').textContent = group.creatorName;
-                document.getElementById('info-group-id').textContent = currentGroup;
-                document.getElementById('info-group-created').textContent = group.createdAt;
-                
-                // Count members
-                database.ref('groupMembers/' + currentGroup).once('value')
-                    .then(membersSnapshot => {
-                        const memberCount = membersSnapshot.numChildren();
-                        document.getElementById('info-group-members').textContent = memberCount;
-                    });
-            } else {
-                // Default group info
-                document.getElementById('info-group-name').textContent = 'Dô la - ToanCreator';
-                document.getElementById('info-group-creator').textContent = 'Hệ thống';
-                document.getElementById('info-group-id').textContent = 'default-group';
-                document.getElementById('info-group-created').textContent = 'Không xác định';
-                
-                database.ref('groupMembers/default-group').once('value')
-                    .then(membersSnapshot => {
-                        const memberCount = membersSnapshot.numChildren();
-                        document.getElementById('info-group-members').textContent = memberCount;
-                    });
-            }
-            
-            groupInfoModal.style.display = 'flex';
-        })
-        .catch(error => {
-            console.error('Error loading group info:', error);
-        });
-}
-
-// Show add member modal
-function showAddMemberModal() {
-    if (addMemberModal) addMemberModal.style.display = 'flex';
-}
-
-// Show delete group modal
-function showDeleteGroupModal() {
-    if (!deleteGroupModal) return;
-    
-    if (currentGroup === 'default-group') {
-        alert('Không thể xoá nhóm mặc định');
-        return;
-    }
-    
-    deleteGroupModal.style.display = 'flex';
-}
-
-// Show admin cmd modal
-function showAdminCmdModal() {
-    if (!adminCmdModal) return;
-    
-    adminCmdModal.style.display = 'flex';
-    
-    // Check if user is admin
-    if (isAdmin) {
-        if (adminLoginPrompt) adminLoginPrompt.style.display = 'none';
-        if (adminCommands) adminCommands.style.display = 'block';
-    } else {
-        if (adminLoginPrompt) adminLoginPrompt.style.display = 'block';
-        if (adminCommands) adminCommands.style.display = 'none';
-    }
-}
-
-// Switch tabs
-function switchTab(tab) {
-    if (!createTab || !joinTab || !createGroupContent || !joinGroupContent) return;
-    
-    if (tab === 'create') {
-        createTab.classList.add('active');
-        joinTab.classList.remove('active');
-        createGroupContent.classList.add('active');
-        joinGroupContent.classList.remove('active');
-    } else {
-        createTab.classList.remove('active');
-        joinTab.classList.add('active');
-        createGroupContent.classList.remove('active');
-        joinGroupContent.classList.add('active');
-    }
-}
-
-// Create group
-function createGroup() {
-    if (!newGroupName || !groupPassword) return;
-    
-    const groupName = newGroupName.value.trim();
-    const password = groupPassword.value.trim();
-    
-    if (!groupName) {
-        alert('Vui lòng nhập tên nhóm');
-        return;
-    }
-    
-    if (groupName.length > 15) {
-        alert('Tên nhóm không được vượt quá 15 ký tự');
-        return;
-    }
-    
-    if (!password) {
-        alert('Vui lòng nhập mật khẩu');
-        return;
-    }
-    
-    if (password.length > 8) {
-        alert('Mật khẩu không được vượt quá 8 ký tự');
-        return;
-    }
-    
-    // Generate group ID
-    const groupId = 'group-' + Date.now() + Math.floor(Math.random() * 1000);
-    
-    // Create group
-    database.ref('groups/' + groupId).set({
-        name: groupName,
-        password,
-        creatorId: currentUser.userId,
-        creatorName: currentUser.username,
-        createdAt: new Date().toLocaleString('vi-VN')
-    }).then(() => {
-        // Add creator to group
-        return database.ref('groupMembers/' + groupId + '/' + currentUser.userId).set({
-            username: currentUser.username,
-            joinedAt: new Date().toLocaleString('vi-VN')
-        });
-    }).then(() => {
-        // Add group to user's groups
-        return database.ref('userGroups/' + currentUser.userId + '/' + groupId).set({
-            groupName,
-            joinedAt: new Date().toLocaleString('vi-VN')
-        });
-    }).then(() => {
-        // Clear form and close modal
-        if (newGroupName) newGroupName.value = '';
-        if (groupPassword) groupPassword.value = '';
-        if (addGroupModal) addGroupModal.style.display = 'none';
-        
-        // Switch to new group
-        currentGroup = groupId;
-        if (currentGroupName) currentGroupName.textContent = groupName;
-        loadMessages(groupId);
-        loadUserGroups();
-    }).catch(error => {
-        console.error('Error creating group:', error);
-        alert('Lỗi khi tạo nhóm');
-    });
-}
-
-// Join group
-function joinGroup() {
-    if (!groupIdInput || !joinPassword) return;
-    
-    const groupId = groupIdInput.value.trim();
-    const password = joinPassword.value.trim();
-    
-    if (!groupId) {
-        alert('Vui lòng nhập ID nhóm');
-        return;
-    }
-    
-    if (!password) {
-        alert('Vui lòng nhập mật khẩu');
-        return;
-    }
-    
-    // Check if group exists
-    database.ref('groups/' + groupId).once('value')
-        .then(snapshot => {
-            if (!snapshot.exists()) {
-                alert('Nhóm không tồn tại');
-                return;
-            }
-            
-            const group = snapshot.val();
-            
-            // Check password
-            if (group.password !== password) {
-                alert('Mật khẩu không đúng');
-                return;
-            }
-            
-            // Check if user is already in the group
-            return database.ref('groupMembers/' + groupId + '/' + currentUser.userId).once('value')
-                .then(memberSnapshot => {
-                    if (memberSnapshot.exists()) {
-                        alert('Bạn đã tham gia nhóm này rồi');
-                        return;
-                    }
-                    
-                    // Add user to group
-                    return database.ref('groupMembers/' + groupId + '/' + currentUser.userId).set({
-                        username: currentUser.username,
-                        joinedAt: new Date().toLocaleString('vi-VN')
-                    }).then(() => {
-                        // Add group to user's groups
-                        return database.ref('userGroups/' + currentUser.userId + '/' + groupId).set({
-                            groupName: group.name,
-                            joinedAt: new Date().toLocaleString('vi-VN')
-                        });
-                    }).then(() => {
-                        // Send notification
-                        const notification = {
-                            senderId: 'system',
-                            senderName: 'Hệ thống',
-                            content: currentUser.username + ' đã tham gia nhóm',
-                            timestamp: new Date().toLocaleString('vi-VN'),
-                            type: 'notification'
-                        };
-                        
-                        return database.ref('messages/' + groupId).push(notification);
-                    }).then(() => {
-                        // Clear form and close modal
-                        if (groupIdInput) groupIdInput.value = '';
-                        if (joinPassword) joinPassword.value = '';
-                        if (addGroupModal) addGroupModal.style.display = 'none';
-                        
-                        // Switch to joined group
-                        currentGroup = groupId;
-                        if (currentGroupName) currentGroupName.textContent = group.name;
-                        loadMessages(groupId);
-                        loadUserGroups();
-                    });
-                });
-        })
-        .catch(error => {
-            console.error('Error joining group:', error);
-            alert('Lỗi khi tham gia nhóm');
-        });
-}
-
-// Invite member
-function inviteMember() {
-    if (!memberIdInput) return;
-    
-    const memberId = memberIdInput.value.trim();
-    
-    if (!memberId) {
-        alert('Vui lòng nhập ID người dùng');
-        return;
-    }
-    
-    // Check if user exists
-    database.ref('users/' + memberId).once('value')
-        .then(snapshot => {
-            if (!snapshot.exists()) {
-                alert('Người dùng không tồn tại');
-                return;
-            }
-            
-            const user = snapshot.val();
-            
-            // Check if user is already in the group
-            return database.ref('groupMembers/' + currentGroup + '/' + memberId).once('value')
-                .then(memberSnapshot => {
-                    if (memberSnapshot.exists()) {
-                        alert('Người dùng đã ở trong nhóm này');
-                        return;
-                    }
-                    
-                    // Add user to group
-                    return database.ref('groupMembers/' + currentGroup + '/' + memberId).set({
-                        username: user.username,
-                        joinedAt: new Date().toLocaleString('vi-VN')
-                    }).then(() => {
-                        // Add group to user's groups
-                        return database.ref('userGroups/' + memberId + '/' + currentGroup).set({
-                            groupName: currentGroupName ? currentGroupName.textContent : 'Nhóm không tên',
-                            joinedAt: new Date().toLocaleString('vi-VN')
-                        });
-                    }).then(() => {
-                        // Send notification
-                        const notification = {
-                            senderId: 'system',
-                            senderName: 'Hệ thống',
-                            content: user.username + ' đã tham gia nhóm',
-                            timestamp: new Date().toLocaleString('vi-VN'),
-                            type: 'notification'
-                        };
-                        
-                        return database.ref('messages/' + currentGroup).push(notification);
-                    }).then(() => {
-                        // Clear form and close modal
-                        if (memberIdInput) memberIdInput.value = '';
-                        if (addMemberModal) addMemberModal.style.display = 'none';
-                    });
-                });
-        })
-        .catch(error => {
-            console.error('Error inviting member:', error);
-            alert('Lỗi khi mời thành viên');
-        });
-}
-
-// Delete group
-function deleteGroup() {
-    if (!confirmPassword) return;
-    
-    const password = confirmPassword.value.trim();
-    
-    if (!password) {
-        alert('Vui lòng nhập mật khẩu');
-        return;
-    }
-    
-    // Check group password
-    database.ref('groups/' + currentGroup).once('value')
-        .then(snapshot => {
-            const group = snapshot.val();
-            
-            if (group.password !== password) {
-                alert('Mật khẩu không đúng');
-                return;
-            }
-            
-            // Delete group
-            return database.ref('groups/' + currentGroup).remove();
-        })
-        .then(() => {
-            // Delete group members
-            return database.ref('groupMembers/' + currentGroup).remove();
-        })
-        .then(() => {
-            // Delete group from users' groups
-            return database.ref('userGroups').once('value')
-                .then(usersSnapshot => {
-                    const updates = {};
-                    usersSnapshot.forEach(userSnapshot => {
-                        updates[`${userSnapshot.key}/${currentGroup}`] = null;
-                    });
-                    return database.ref('userGroups').update(updates);
-                });
-        })
-        .then(() => {
-            // Delete group messages
-            return database.ref('messages/' + currentGroup).remove();
-        })
-        .then(() => {
-            // Clear form and close modal
-            if (confirmPassword) confirmPassword.value = '';
-            if (deleteGroupModal) deleteGroupModal.style.display = 'none';
-            
-            // Switch to default group
-            currentGroup = 'default-group';
-            if (currentGroupName) currentGroupName.textContent = 'Dô la - ToanCreator';
-            loadMessages('default-group');
-            loadUserGroups();
-        })
-        .catch(error => {
-            console.error('Error deleting group:', error);
-            alert('Lỗi khi xoá nhóm');
-        });
-}
-
-// Sign in with Google (Admin)
-function signInWithGoogle() {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    
-    auth.signInWithPopup(provider)
-        .then(result => {
-            const user = result.user;
-            
-            // Check if user is admin
-            if (user.email === 'tranhoangtoan2k8@gmail.com' || user.email === 'lehuutam20122008@gmail.com') {
-                isAdmin = true;
-                
-                // Update UI
-                if (adminLoginPrompt) adminLoginPrompt.style.display = 'none';
-                if (adminCommands) adminCommands.style.display = 'block';
-                
-                // Show success message
-                alert('Đăng nhập admin thành công');
-            } else {
-                auth.signOut();
-                alert('Bạn không có quyền admin');
-            }
-        })
-        .catch(error => {
-            console.error('Error signing in with Google:', error);
-            alert('Đăng nhập thất bại');
-        });
-}
-
-// Execute admin command
-function executeCommand() {
-    if (!cmdInput || !cmdOutput) return;
-    
-    const command = cmdInput.value.trim();
-    
-    if (!command) return;
-    
-    // Add command to output
-    addToOutput('> ' + command);
-    
-    // Process command
-    const parts = command.split(' ');
-    const cmd = parts[0];
-    const arg = parts[1];
-    
-    switch (cmd) {
-        case ':pause':
-            if (!arg) {
-                addToOutput('Lỗi: Thiếu ID người dùng');
-                break;
-            }
-            database.ref('users/' + arg).update({ isPaused: true })
-                .then(() => addToOutput(`Đã khoá chat cho người dùng ${arg}`))
-                .catch(() => addToOutput('Lỗi: Người dùng không tồn tại'));
-            break;
-            
-        case ':unpause':
-            if (!arg) {
-                addToOutput('Lỗi: Thiếu ID người dùng');
-                break;
-            }
-            database.ref('users/' + arg).update({ isPaused: false })
-                .then(() => addToOutput(`Đã mở chat cho người dùng ${arg}`))
-                .catch(() => addToOutput('Lỗi: Người dùng không tồn tại'));
-            break;
-            
-        case ':delete':
-            if (!arg) {
-                addToOutput('Lỗi: Thiếu ID người dùng');
-                break;
-            }
-            if (!currentGroup) {
-                addToOutput('Lỗi: Không có nhóm hiện tại');
-                break;
-            }
-            database.ref('groupMembers/' + currentGroup + '/' + arg).remove()
-                .then(() => addToOutput(`Đã xoá người dùng ${arg} khỏi nhóm`))
-                .catch(() => addToOutput('Lỗi: Không thể xoá người dùng'));
-            break;
-            
-        case ':clear':
-            if (!arg) {
-                addToOutput('Lỗi: Thiếu ID người dùng hoặc ID nhóm');
-                break;
-            }
-            
-            if (arg.startsWith('group-') || arg === 'default-group') {
-                // Clear group messages
-                database.ref('messages/' + arg).remove()
-                    .then(() => addToOutput(`Đã xoá mọi tin nhắn trong nhóm ${arg}`))
-                    .catch(() => addToOutput('Lỗi: Không thể xoá tin nhắn'));
-            } else {
-                // Clear user messages in current group
-                database.ref('messages/' + currentGroup).orderByChild('senderId').equalTo(arg).once('value')
-                    .then(snapshot => {
-                        const updates = {};
-                        snapshot.forEach(child => {
-                            updates[child.key] = null;
-                        });
-                        database.ref('messages/' + currentGroup).update(updates)
-                            .then(() => addToOutput(`Đã xoá tin nhắn của người dùng ${arg}`))
-                            .catch(() => addToOutput('Lỗi: Không thể xoá tin nhắn'));
-                    });
-            }
-            break;
-            
-        case ':showgroup':
-            database.ref('groups').once('value')
-                .then(snapshot => {
-                    if (!snapshot.exists()) {
-                        addToOutput('Không có nhóm nào');
-                        return;
-                    }
-                    
-                    addToOutput('Danh sách nhóm:');
-                    snapshot.forEach(group => {
-                        addToOutput(`- ${group.val().name} (ID: ${group.key}, Mật khẩu: ${group.val().password})`);
-                    });
-                });
-            break;
-            
-        case ':showpeople':
-            database.ref('users').once('value')
-                .then(snapshot => {
-                    if (!snapshot.exists()) {
-                        addToOutput('Không có người dùng nào');
-                        return;
-                    }
-                    
-                    addToOutput('Danh sách người dùng:');
-                    snapshot.forEach(user => {
-                        addToOutput(`- ${user.val().username} (ID: ${user.key})`);
-                    });
-                });
-            break;
-            
-        case ':allpause':
-            database.ref('users').once('value')
-                .then(snapshot => {
-                    const updates = {};
-                    snapshot.forEach(user => {
-                        updates[user.key + '/isPaused'] = true;
-                    });
-                    database.ref('users').update(updates)
-                        .then(() => addToOutput('Đã khoá chat tất cả người dùng'));
-                });
-            break;
-            
-        case ':unallpause':
-            database.ref('users').once('value')
-                .then(snapshot => {
-                    const updates = {};
-                    snapshot.forEach(user => {
-                        updates[user.key + '/isPaused'] = false;
-                    });
-                    database.ref('users').update(updates)
-                        .then(() => addToOutput('Đã mở chat tất cả người dùng'));
-                });
-            break;
-            
-        case ':allclear':
-            if (!currentGroup) {
-                addToOutput('Lỗi: Không có nhóm hiện tại');
-                break;
-            }
-            database.ref('messages/' + currentGroup).remove()
-                .then(() => addToOutput('Đã xoá mọi tin nhắn trong nhóm hiện tại'));
-            break;
-            
-        case ':ban':
-            if (!arg) {
-                addToOutput('Lỗi: Thiếu ID người dùng');
-                break;
-            }
-            // Delete user from all groups
-            database.ref('groupMembers').once('value')
-                .then(groupsSnapshot => {
-                    const updates = {};
-                    groupsSnapshot.forEach(group => {
-                        updates[group.key + '/' + arg] = null;
-                    });
-                    database.ref('groupMembers').update(updates);
-                    
-                    // Delete user's groups
-                    database.ref('userGroups/' + arg).remove();
-                    
-                    // Delete user
-                    database.ref('users/' + arg).remove()
-                        .then(() => addToOutput(`Đã xoá người dùng ${arg}`));
-                });
-            break;
-            
-        default:
-            addToOutput('Lỗi: Lệnh không hợp lệ');
-    }
-    
-    if (cmdInput) cmdInput.value = '';
-}
-
-// Add text to command output
-// Add text to command output
-function addToOutput(text) {
-    if (!cmdOutput) return;
-    
-    const p = document.createElement('p');
-    p.textContent = text;
-    cmdOutput.appendChild(p);
-    cmdOutput.scrollTop = cmdOutput.scrollHeight;
-}
-
-// Copy to clipboard
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text)
-        .then(() => {
-            const tooltip = document.createElement('div');
-            tooltip.className = 'tooltip';
-            tooltip.textContent = 'Đã sao chép!';
-            document.body.appendChild(tooltip);
-            
-            setTimeout(() => {
-                tooltip.remove();
-            }, 2000);
-        })
-        .catch(err => {
-            console.error('Failed to copy text: ', err);
-        });
-}
-
-// Initialize the app when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    checkThemePreference();
-    init();
 });
 
-// Make copyToClipboard available globally
-window.copyToClipboard = copyToClipboard;
+// Close modal when clicking outside content
+window.addEventListener('click', (event) => {
+    if (event.target.classList.contains('modal')) {
+        toggleModal(event.target, false);
+    }
+});
+
+/**
+ * Generates a unique ID (UUID v4).
+ * @returns {string} A unique ID.
+ */
+function generateUniqueId() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0,
+            v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+/**
+ * Formats a timestamp into a readable date and time string.
+ * @param {firebase.firestore.Timestamp|Date} timestamp - The timestamp to format.
+ * @returns {string} Formatted date and time.
+ */
+function formatTimestamp(timestamp) {
+    const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
+    const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
+    return date.toLocaleDateString('vi-VN', options);
+}
+
+/**
+ * Validates full name input (alphanumeric only, max 20 chars).
+ * @param {string} name - The name to validate.
+ * @returns {boolean} True if valid, false otherwise.
+ */
+function isValidFullName(name) {
+    return /^[a-zA-Z0-9\s]{1,20}$/.test(name);
+}
+
+/**
+ * Fetches user's IP address (placeholder, actual IP cannot be fetched directly from client-side JS).
+ */
+async function fetchUserIpAddress() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        userIpAddress = data.ip;
+        console.log("User IP Address:", userIpAddress);
+    } catch (error) {
+        console.warn("Could not fetch IP address. Using 'unknown'.", error);
+        userIpAddress = 'unknown'; // Fallback
+    }
+}
+
+// --- Firebase Authentication and User Management ---
+
+// Listen for Firebase Auth state changes
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        currentUserId = user.uid;
+        console.log("Firebase Auth State Changed: User Logged In", currentUserId);
+
+        // Check if user is admin
+        currentUserIsAdmin = adminEmails.includes(user.email);
+        if (currentUserIsAdmin) {
+            cmdBtn.classList.remove('hidden');
+            console.log("Admin user detected:", user.email);
+        } else {
+            cmdBtn.classList.add('hidden');
+        }
+
+        // Fetch user data from Firestore
+        await fetchUserIpAddress(); // Get IP before checking user data
+        await loadUserData(currentUserId, userIpAddress);
+
+        // If user data is loaded, proceed to chat interface
+        if (currentUser) {
+            startScreen.classList.add('hidden');
+            chatInterface.classList.remove('hidden');
+            updateUserProfileUI();
+            loadUserGroups();
+            loadMessages(activeGroupId); // Load messages for the default group
+        } else {
+            // New user or IP mismatch, show registration modal
+            toggleModal(authModal, true);
+        }
+    } else {
+        // User is signed out or not yet signed in
+        console.log("Firebase Auth State Changed: User Logged Out");
+        // Only show start screen if not already signed in anonymously by default
+        if (!initialAuthToken) { // If no initial token, allow anonymous sign-in flow
+             startScreen.classList.remove('hidden');
+             chatInterface.classList.add('hidden');
+        }
+    }
+    firebaseInitialized = true; // Mark Firebase as initialized
+});
+
+/**
+ * Loads user data from Firestore based on UID or IP.
+ * @param {string} uid - The Firebase User ID.
+ * @param {string} ip - The user's IP address.
+ */
+async function loadUserData(uid, ip) {
+    const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        // Check if IP matches (for basic short-term IP-based account persistence)
+        if (userData.ipAddress === ip || currentUserIsAdmin) { // Admins bypass IP check
+            currentUser = userData;
+            currentUserName = currentUser.name;
+            console.log("Existing user data loaded:", currentUser);
+            return true;
+        } else {
+            console.warn("IP address mismatch for existing user. Treating as new session.");
+            // If IP doesn't match, treat as new session for non-admin users
+            // This means they won't automatically log in with their old profile
+            // and will be prompted to register again.
+            currentUser = null;
+            return false;
+        }
+    } else {
+        console.log("No existing user data found for UID:", uid);
+        currentUser = null;
+        return false;
+    }
+}
+
+/**
+ * Registers a new user and saves their data to Firestore.
+ * @param {string} name - The user's chosen name.
+ */
+async function registerUser(name) {
+    if (!currentUserId) {
+        showMessageBox("Lỗi: Không tìm thấy ID người dùng.");
+        return;
+    }
+
+    // Check if an account already exists for this IP
+    const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
+    const q = query(usersCollectionRef, where('profile.data.ipAddress', '==', userIpAddress));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty && !currentUserIsAdmin) {
+        showMessageBox("Địa chỉ IP này đã được sử dụng để đăng kí tài khoản khác. Vui lòng sử dụng tài khoản đã đăng kí hoặc liên hệ admin.");
+        return;
+    }
+
+    const newUserData = {
+        name: name,
+        id: currentUserId, // Use Firebase UID as user ID
+        ipAddress: userIpAddress,
+        createdAt: serverTimestamp(),
+        groups: ['default-group'], // Automatically join default group
+        isAdmin: false,
+        isPaused: false, // For admin commands
+    };
+
+    try {
+        // Store user profile data
+        const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data');
+        await setDoc(userProfileDocRef, newUserData);
+        currentUser = newUserData;
+        currentUserName = name;
+        console.log("User registered successfully:", newUserData);
+
+        // Add user to the default group's members list
+        const defaultGroupRef = doc(db, `artifacts/${appId}/public/data/groups`, 'default-group');
+        const defaultGroupSnap = await getDoc(defaultGroupRef);
+
+        if (defaultGroupSnap.exists()) {
+            const groupData = defaultGroupSnap.data();
+            const currentMembers = groupData.members || [];
+            if (!currentMembers.includes(currentUserId)) {
+                await updateDoc(defaultGroupRef, {
+                    members: [...currentMembers, currentUserId]
+                });
+                console.log("User added to default group members.");
+            }
+        } else {
+            // Create default group if it doesn't exist
+            await setDoc(defaultGroupRef, {
+                name: 'Dô la - ToanCreator',
+                creatorId: 'admin', // Placeholder admin ID
+                creatorName: 'Toàn Creator ✅',
+                id: 'default-group',
+                createdAt: serverTimestamp(),
+                members: [currentUserId],
+                isPublic: true,
+                password: null, // No password for default group
+            });
+            console.log("Default group created and user added.");
+        }
+
+        toggleModal(termsModal, false);
+        startScreen.classList.add('hidden');
+        chatInterface.classList.remove('hidden');
+        updateUserProfileUI();
+        loadUserGroups();
+        loadMessages(activeGroupId);
+
+        // Send system message about new user joining
+        await sendSystemMessage(activeGroupId, `${name} vừa tham gia nhóm.`);
+
+    } catch (e) {
+        console.error("Error registering user: ", e);
+        showMessageBox("Đã xảy ra lỗi khi đăng kí. Vui lòng thử lại.");
+    }
+}
+
+/**
+ * Updates the user profile information in the UI.
+ */
+function updateUserProfileUI() {
+    if (currentUser) {
+        userNameDisplay.textContent = currentUser.name;
+        userIdDisplay.textContent = `Id: ${currentUser.id}`;
+        accountCreationTimeDisplay.textContent = `Thời gian tạo: ${formatTimestamp(currentUser.createdAt)}`;
+    }
+}
+
+/**
+ * Loads and displays the list of groups the user belongs to.
+ */
+function loadUserGroups() {
+    if (!currentUser || !currentUserId) {
+        console.warn("Cannot load groups: currentUser or currentUserId is null.");
+        return;
+    }
+
+    const userGroupsRef = doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data');
+
+    onSnapshot(userGroupsRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const userData = docSnap.data();
+            const groups = userData.groups || [];
+            contactList.querySelectorAll('.group-item:not(.create-join-group)').forEach(el => el.remove()); // Clear existing groups except default and create/join button
+
+            // Add default group if not present (should always be there)
+            if (!groups.includes('default-group')) {
+                groups.unshift('default-group');
+            }
+
+            groups.forEach(async (groupId) => {
+                const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupId);
+                const groupSnap = await getDoc(groupRef);
+                if (groupSnap.exists()) {
+                    const groupData = groupSnap.data();
+                    if (!document.querySelector(`.group-item[data-group-id="${groupId}"]`)) {
+                        const groupItem = document.createElement('div');
+                        groupItem.classList.add('contact-item', 'group-item');
+                        if (groupId === activeGroupId) {
+                            groupItem.classList.add('active');
+                            groupNameDisplay.textContent = groupData.name; // Update header
+                        }
+                        groupItem.dataset.groupId = groupId;
+                        groupItem.innerHTML = `
+                            <div class="group-icon">${groupData.name.charAt(0).toUpperCase()}</div>
+                            <span>${groupData.name}</span>
+                        `;
+                        groupItem.addEventListener('click', () => switchGroup(groupId, groupData.name));
+                        contactList.appendChild(groupItem);
+                    }
+                }
+            });
+        } else {
+            console.warn("User profile document does not exist for group loading.");
+        }
+    }, (error) => {
+        console.error("Error loading user groups:", error);
+    });
+}
+
+/**
+ * Switches the active chat group.
+ * @param {string} groupId - The ID of the group to switch to.
+ * @param {string} groupName - The name of the group.
+ */
+async function switchGroup(groupId, groupName) {
+    if (activeGroupId === groupId) return;
+
+    // Remove active class from current group
+    const currentActive = document.querySelector(`.group-item.active`);
+    if (currentActive) {
+        currentActive.classList.remove('active');
+    }
+
+    // Add active class to new group
+    const newActive = document.querySelector(`.group-item[data-group-id="${groupId}"]`);
+    if (newActive) {
+        newActive.classList.add('active');
+    }
+
+    activeGroupId = groupId;
+    groupNameDisplay.textContent = groupName;
+    chatMessages.innerHTML = ''; // Clear existing messages
+    await loadMessages(groupId); // Load messages for the new group
+
+    // Fetch and store active group data for modal info
+    const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, groupId);
+    const groupSnap = await getDoc(groupDocRef);
+    if (groupSnap.exists()) {
+        activeGroupData = groupSnap.data();
+    } else {
+        activeGroupData = null;
+        console.warn("Active group data not found for:", groupId);
+    }
+}
+
+/**
+ * Loads messages for a given group and sets up a real-time listener.
+ * @param {string} groupId - The ID of the group to load messages for.
+ */
+function loadMessages(groupId) {
+    if (!db) {
+        console.error("Firestore DB not initialized.");
+        return;
+    }
+
+    const messagesCollectionRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
+    const q = query(messagesCollectionRef); // No orderBy to avoid index issues
+
+    onSnapshot(q, (snapshot) => {
+        chatMessages.innerHTML = ''; // Clear messages before re-rendering
+        const messages = [];
+        snapshot.forEach(doc => {
+            messages.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Sort messages by timestamp client-side
+        messages.sort((a, b) => (a.timestamp && b.timestamp) ? a.timestamp.toDate() - b.timestamp.toDate() : 0);
+
+        messages.forEach(msg => {
+            displayMessage(msg);
+        });
+        chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+    }, (error) => {
+        console.error("Error loading messages: ", error);
+    });
+}
+
+/**
+ * Displays a single message in the chat interface.
+ * @param {object} message - The message object.
+ */
+function displayMessage(message) {
+    const messageBubble = document.createElement('div');
+    messageBubble.classList.add('message-bubble');
+
+    let senderInfoHtml = '';
+    let messageTextClass = 'message-text';
+
+    if (message.senderId === currentUserId) {
+        messageBubble.classList.add('sent');
+        senderInfoHtml = `
+            <span class="sender-name">Bạn</span>
+            <button class="copy-id-btn" data-id="${message.senderId}">Sao chép ID</button>
+        `;
+    } else if (message.senderId === 'admin') {
+        messageBubble.classList.add('admin');
+        senderInfoHtml = `<span class="admin-name">Toàn Creator ✅</span>`;
+        messageTextClass += ' italic'; // Italicize admin messages
+    } else if (message.type === 'system') {
+        messageBubble.classList.add('system-message');
+        messageBubble.textContent = message.text;
+        chatMessages.appendChild(messageBubble);
+        return; // System messages are simpler
+    } else {
+        messageBubble.classList.add('received');
+        senderInfoHtml = `
+            <span class="sender-name">${message.senderName}</span>
+            <button class="copy-id-btn" data-id="${message.senderId}">Sao chép ID</button>
+        `;
+    }
+
+    messageBubble.innerHTML = `
+        <div class="message-content">
+            <div class="sender-info">${senderInfoHtml}</div>
+            <div class="${messageTextClass}">${message.text}</div>
+            <div class="timestamp">${formatTimestamp(message.timestamp)}</div>
+        </div>
+    `;
+    chatMessages.appendChild(messageBubble);
+
+    // Add event listener for copy ID button
+    const copyIdBtn = messageBubble.querySelector('.copy-id-btn');
+    if (copyIdBtn) {
+        copyIdBtn.addEventListener('click', (e) => {
+            const idToCopy = e.target.dataset.id;
+            copyToClipboard(idToCopy);
+            showMessageBox("Đã sao chép ID!");
+        });
+    }
+}
+
+/**
+ * Copies text to the clipboard.
+ * @param {string} text - The text to copy.
+ */
+function copyToClipboard(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+    } catch (err) {
+        console.error('Failed to copy text: ', err);
+    }
+    document.body.removeChild(textarea);
+}
+
+/**
+ * Sends a chat message to the active group.
+ */
+async function sendMessage() {
+    const messageText = messageInput.value.trim();
+    if (messageText === '' || !currentUser || !activeGroupId) {
+        return;
+    }
+
+    // Check if user is paused (only if not admin)
+    if (!currentUserIsAdmin && currentUser.isPaused) {
+        showMessageBox("Tài khoản của bạn đã bị tạm khóa chức năng chat bởi Admin.");
+        return;
+    }
+
+    const newMessage = {
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        text: messageText,
+        timestamp: serverTimestamp(),
+        type: 'chat'
+    };
+
+    try {
+        const messagesCollectionRef = collection(db, `artifacts/${appId}/public/data/groups/${activeGroupId}/messages`);
+        await addDoc(messagesCollectionRef, newMessage);
+        messageInput.value = ''; // Clear input
+        chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+    } catch (e) {
+        console.error("Error sending message: ", e);
+        showMessageBox("Đã xảy ra lỗi khi gửi tin nhắn. Vui lòng thử lại.");
+    }
+}
+
+/**
+ * Sends a system message to a specific group.
+ * @param {string} groupId - The ID of the group.
+ * @param {string} message - The system message text.
+ */
+async function sendSystemMessage(groupId, message) {
+    const systemMessage = {
+        senderId: 'system',
+        senderName: 'Hệ thống',
+        text: message,
+        timestamp: serverTimestamp(),
+        type: 'system'
+    };
+    try {
+        const messagesCollectionRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
+        await addDoc(messagesCollectionRef, systemMessage);
+    } catch (e) {
+        console.error("Error sending system message: ", e);
+    }
+}
+
+// --- Event Listeners ---
+
+chatNowBtn.addEventListener('click', async () => {
+    if (!firebaseInitialized) {
+        showMessageBox("Hệ thống đang khởi tạo, vui lòng đợi giây lát.");
+        return;
+    }
+    // If user is already loaded (from IP check or previous session), go straight to chat
+    if (currentUser) {
+        startScreen.classList.add('hidden');
+        chatInterface.classList.remove('hidden');
+        updateUserProfileUI();
+        loadUserGroups();
+        loadMessages(activeGroupId);
+    } else {
+        // Otherwise, show registration modal
+        toggleModal(authModal, true);
+    }
+});
+
+fullNameInput.addEventListener('input', () => {
+    const isValid = isValidFullName(fullNameInput.value);
+    setupBtn.disabled = !isValid;
+    if (isValid) {
+        setupBtn.classList.remove('disabled');
+    } else {
+        setupBtn.classList.add('disabled');
+    }
+});
+
+setupBtn.addEventListener('click', () => {
+    const fullName = fullNameInput.value.trim();
+    const recaptchaResponse = grecaptcha.getResponse();
+
+    if (!isValidFullName(fullName)) {
+        showMessageBox("Họ và Tên không hợp lệ. Chỉ chấp nhận chữ và số, tối đa 20 ký tự.");
+        return;
+    }
+
+    if (!recaptchaResponse) {
+        showMessageBox("Vui lòng xác minh bạn không phải là robot.");
+        return;
+    }
+
+    // In a real application, you'd send recaptchaResponse to your server for verification.
+    // For this client-side demo, we'll just proceed if a response is present.
+    console.log("reCAPTCHA response:", recaptchaResponse);
+
+    toggleModal(authModal, false);
+    toggleModal(termsModal, true);
+});
+
+agreeTermsCheckbox.addEventListener('change', () => {
+    if (agreeTermsCheckbox.checked) {
+        startChatBtn.disabled = false;
+        startChatBtn.classList.remove('disabled');
+    } else {
+        startChatBtn.disabled = true;
+        startChatBtn.classList.add('disabled');
+    }
+});
+
+startChatBtn.addEventListener('click', async () => {
+    if (!agreeTermsCheckbox.checked) {
+        showMessageBox("Bạn phải đồng ý với các điều khoản để bắt đầu.");
+        return;
+    }
+    const fullName = fullNameInput.value.trim();
+    await registerUser(fullName);
+});
+
+googleLoginBtn.addEventListener('click', async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        console.log("Google Login User:", user.email);
+
+        if (adminEmails.includes(user.email)) {
+            currentUserIsAdmin = true;
+            // Admin users bypass IP check and always load their profile
+            await loadUserData(user.uid, userIpAddress); // Load or create admin profile
+            if (!currentUser) { // If admin profile doesn't exist, create it
+                const newAdminData = {
+                    name: user.displayName || "Admin",
+                    id: user.uid,
+                    ipAddress: userIpAddress, // Store current IP for admin too
+                    createdAt: serverTimestamp(),
+                    groups: ['default-group'],
+                    isAdmin: true,
+                    isPaused: false,
+                };
+                const adminProfileDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'data');
+                await setDoc(adminProfileDocRef, newAdminData);
+                currentUser = newAdminData;
+                currentUserName = newAdminData.name;
+                console.log("Admin profile created:", newAdminData);
+            } else {
+                // Ensure existing admin profile has isAdmin: true
+                if (!currentUser.isAdmin) {
+                    const adminProfileDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'data');
+                    await updateDoc(adminProfileDocRef, { isAdmin: true });
+                    currentUser.isAdmin = true;
+                }
+            }
+
+            toggleModal(authModal, false);
+            startScreen.classList.add('hidden');
+            chatInterface.classList.remove('hidden');
+            updateUserProfileUI();
+            loadUserGroups();
+            loadMessages(activeGroupId);
+            cmdBtn.classList.remove('hidden'); // Show CMD button for admin
+            showMessageBox("Đăng nhập Admin thành công!");
+        } else {
+            await signOut(auth); // Sign out non-admin Google users
+            showMessageBox("Bạn không có quyền Admin để đăng nhập bằng Google.");
+        }
+    } catch (error) {
+        console.error("Google login error:", error);
+        showMessageBox("Đăng nhập Google thất bại. Vui lòng thử lại.");
+    }
+});
+
+sendMessageBtn.addEventListener('click', sendMessage);
+messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault(); // Prevent new line
+        sendMessage();
+    }
+});
+
+uploadImageBtn.addEventListener('click', () => {
+    showMessageBox("Tính năng upload ảnh hiện chưa được hỗ trợ.");
+});
+
+themeSwitch.addEventListener('change', () => {
+    document.body.classList.toggle('dark-theme', themeSwitch.checked);
+    localStorage.setItem('theme', themeSwitch.checked ? 'dark' : 'light');
+});
+
+// Load saved theme preference
+document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-theme');
+        themeSwitch.checked = true;
+    }
+    // Initial IP fetch
+    fetchUserIpAddress();
+});
+
+
+// --- Group Management Modals and Functions ---
+
+createJoinGroupBtn.addEventListener('click', () => {
+    toggleModal(createJoinGroupModal, true);
+    // Hide forms initially
+    createGroupForm.classList.add('hidden');
+    joinGroupForm.classList.add('hidden');
+});
+
+showCreateGroupFormBtn.addEventListener('click', () => {
+    createGroupForm.classList.remove('hidden');
+    joinGroupForm.classList.add('hidden');
+});
+
+showJoinGroupFormBtn.addEventListener('click', () => {
+    joinGroupForm.classList.remove('hidden');
+    createGroupForm.classList.add('hidden');
+});
+
+createGroupBtn.addEventListener('click', async () => {
+    const groupName = newGroupNameInput.value.trim();
+    const groupPassword = newGroupPasswordInput.value.trim();
+
+    if (!groupName || groupName.length > 15) {
+        showMessageBox("Tên nhóm không hợp lệ (tối đa 15 ký tự).");
+        return;
+    }
+    if (!groupPassword || groupPassword.length > 8) {
+        showMessageBox("Mật khẩu nhóm không hợp lệ (tối đa 8 ký tự).");
+        return;
+    }
+    if (!currentUser) {
+        showMessageBox("Vui lòng đăng kí tài khoản trước.");
+        return;
+    }
+
+    const newGroupId = generateUniqueId();
+    const groupData = {
+        name: groupName,
+        creatorId: currentUser.id,
+        creatorName: currentUser.name,
+        id: newGroupId,
+        createdAt: serverTimestamp(),
+        members: [currentUser.id],
+        isPublic: false, // New groups are private by default, can be joined by ID
+        password: groupPassword,
+    };
+
+    try {
+        const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, newGroupId);
+        await setDoc(groupDocRef, groupData);
+
+        // Add group to user's group list
+        const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.id}/profile`, 'data');
+        await updateDoc(userProfileDocRef, {
+            groups: [...(currentUser.groups || []), newGroupId]
+        });
+        currentUser.groups = [...(currentUser.groups || []), newGroupId]; // Update local state
+
+        showMessageBox("Nhóm đã được tạo thành công!");
+        toggleModal(createJoinGroupModal, false);
+        newGroupNameInput.value = '';
+        newGroupPasswordInput.value = '';
+        switchGroup(newGroupId, groupName); // Switch to the newly created group
+
+        await sendSystemMessage(newGroupId, `${currentUser.name} đã tạo nhóm "${groupName}".`);
+
+    } catch (e) {
+        console.error("Error creating group: ", e);
+        showMessageBox("Đã xảy ra lỗi khi tạo nhóm. Vui lòng thử lại.");
+    }
+});
+
+joinGroupBtn.addEventListener('click', async () => {
+    const groupIdToJoin = joinGroupIdInput.value.trim();
+
+    if (!groupIdToJoin) {
+        showMessageBox("Vui lòng nhập ID nhóm.");
+        return;
+    }
+    if (!currentUser) {
+        showMessageBox("Vui lòng đăng kí tài khoản trước.");
+        return;
+    }
+
+    try {
+        const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, groupIdToJoin);
+        const groupSnap = await getDoc(groupDocRef);
+
+        if (groupSnap.exists()) {
+            const groupData = groupSnap.data();
+            const currentMembers = groupData.members || [];
+
+            if (currentMembers.includes(currentUser.id)) {
+                showMessageBox("Bạn đã là thành viên của nhóm này rồi.");
+                switchGroup(groupIdToJoin, groupData.name);
+                toggleModal(createJoinGroupModal, false);
+                return;
+            }
+
+            // Add user to group's members list
+            await updateDoc(groupDocRef, {
+                members: [...currentMembers, currentUser.id]
+            });
+
+            // Add group to user's group list
+            const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.id}/profile`, 'data');
+            await updateDoc(userProfileDocRef, {
+                groups: [...(currentUser.groups || []), groupIdToJoin]
+            });
+            currentUser.groups = [...(currentUser.groups || []), groupIdToJoin]; // Update local state
+
+            showMessageBox(`Đã tham gia nhóm "${groupData.name}" thành công!`);
+            toggleModal(createJoinGroupModal, false);
+            joinGroupIdInput.value = '';
+            switchGroup(groupIdToJoin, groupData.name); // Switch to the joined group
+
+            await sendSystemMessage(groupIdToJoin, `${currentUser.name} vừa tham gia nhóm.`);
+
+        } else {
+            showMessageBox("ID nhóm không tồn tại.");
+        }
+    } catch (e) {
+        console.error("Error joining group: ", e);
+        showMessageBox("Đã xảy ra lỗi khi tham gia nhóm. Vui lòng thử lại.");
+    }
+});
+
+groupInfoBtn.addEventListener('click', async () => {
+    if (!activeGroupId || !activeGroupData) {
+        showMessageBox("Vui lòng chọn một nhóm để xem thông tin.");
+        return;
+    }
+
+    // Ensure activeGroupData is up-to-date
+    const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId);
+    const groupSnap = await getDoc(groupDocRef);
+    if (groupSnap.exists()) {
+        activeGroupData = groupSnap.data();
+    } else {
+        showMessageBox("Không tìm thấy thông tin nhóm.");
+        return;
+    }
+
+    infoGroupName.textContent = activeGroupData.name;
+    infoGroupCreator.textContent = activeGroupData.creatorName;
+    infoGroupId.textContent = activeGroupData.id;
+    infoGroupCreationDate.textContent = formatTimestamp(activeGroupData.createdAt);
+    infoMemberCount.textContent = (activeGroupData.members ? activeGroupData.members.length : 0);
+
+    toggleModal(groupInfoModal, true);
+});
+
+inviteUserBtn.addEventListener('click', () => {
+    if (!activeGroupId) {
+        showMessageBox("Vui lòng chọn một nhóm để mời thành viên.");
+        return;
+    }
+    toggleModal(inviteUserModal, true);
+});
+
+sendInviteBtn.addEventListener('click', async () => {
+    const inviteUserId = inviteUserIdInput.value.trim();
+    if (!inviteUserId) {
+        showMessageBox("Vui lòng nhập ID người dùng để mời.");
+        return;
+    }
+    if (!activeGroupId || !activeGroupData) {
+        showMessageBox("Không có nhóm nào đang hoạt động để gửi lời mời.");
+        return;
+    }
+
+    try {
+        // Check if the invited user exists
+        const invitedUserProfileRef = doc(db, `artifacts/${appId}/users/${inviteUserId}/profile`, 'data');
+        const invitedUserSnap = await getDoc(invitedUserProfileRef);
+
+        if (!invitedUserSnap.exists()) {
+            showMessageBox("ID người dùng không tồn tại.");
+            return;
+        }
+
+        const invitedUserData = invitedUserSnap.data();
+        const invitedUserGroups = invitedUserData.groups || [];
+
+        if (invitedUserGroups.includes(activeGroupId)) {
+            showMessageBox("Người dùng này đã là thành viên của nhóm.");
+            return;
+        }
+
+        // Add group to invited user's group list
+        await updateDoc(invitedUserProfileRef, {
+            groups: [...invitedUserGroups, activeGroupId]
+        });
+
+        // Add invited user to current group's members list
+        const currentGroupMembers = activeGroupData.members || [];
+        if (!currentGroupMembers.includes(inviteUserId)) {
+            await updateDoc(doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId), {
+                members: [...currentGroupMembers, inviteUserId]
+            });
+            activeGroupData.members.push(inviteUserId); // Update local state
+        }
+
+        showMessageBox(`Đã gửi lời mời đến ${invitedUserData.name} thành công!`);
+        toggleModal(inviteUserModal, false);
+        inviteUserIdInput.value = '';
+
+        await sendSystemMessage(activeGroupId, `${currentUser.name} đã mời ${invitedUserData.name} vào nhóm.`);
+
+    } catch (e) {
+        console.error("Error sending invite: ", e);
+        showMessageBox("Đã xảy ra lỗi khi gửi lời mời. Vui lòng thử lại.");
+    }
+});
+
+deleteGroupBtn.addEventListener('click', () => {
+    if (!activeGroupId || activeGroupId === 'default-group') {
+        showMessageBox("Không thể xóa nhóm chính hoặc không có nhóm nào đang hoạt động.");
+        return;
+    }
+    if (!activeGroupData || activeGroupData.creatorId !== currentUser.id && !currentUserIsAdmin) {
+        showMessageBox("Bạn không có quyền xóa nhóm này.");
+        return;
+    }
+    toggleModal(deleteGroupModal, true);
+});
+
+confirmDeleteGroupBtn.addEventListener('click', async () => {
+    const password = deleteGroupPasswordInput.value.trim();
+    if (!activeGroupData) {
+        showMessageBox("Không tìm thấy thông tin nhóm.");
+        return;
+    }
+
+    if (password !== activeGroupData.password && !currentUserIsAdmin) {
+        showMessageBox("Mật khẩu nhóm không đúng.");
+        return;
+    }
+
+    try {
+        // Delete all messages in the group
+        const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${activeGroupId}/messages`);
+        const q = query(messagesRef);
+        const snapshot = await getDocs(q);
+        const batch = db.batch(); // Use batch for multiple deletes
+        snapshot.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+
+        // Remove group from all members' group lists
+        const members = activeGroupData.members || [];
+        for (const memberId of members) {
+            const memberProfileRef = doc(db, `artifacts/${appId}/users/${memberId}/profile`, 'data');
+            const memberSnap = await getDoc(memberProfileRef);
+            if (memberSnap.exists()) {
+                const memberData = memberSnap.data();
+                const updatedGroups = (memberData.groups || []).filter(g => g !== activeGroupId);
+                await updateDoc(memberProfileRef, { groups: updatedGroups });
+            }
+        }
+
+        // Delete the group document itself
+        await deleteDoc(doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId));
+
+        showMessageBox(`Nhóm "${activeGroupData.name}" đã được xóa thành công!`);
+        toggleModal(deleteGroupModal, false);
+        deleteGroupPasswordInput.value = '';
+
+        // Switch back to default group
+        switchGroup('default-group', 'Dô la - ToanCreator');
+
+    } catch (e) {
+        console.error("Error deleting group: ", e);
+        showMessageBox("Đã xảy ra lỗi khi xóa nhóm. Vui lòng thử lại.");
+    }
+});
+
+
+// --- Admin CMD Functions ---
+
+const cmdCommands = [
+    ':pause', ':unpause', ':clear', ':showgroup', ':showpeople',
+    ':allpause', ':unallpause', ':allclear', ':ban'
+];
+
+function generateCmdKeyboard() {
+    cmdKeyboard.innerHTML = '';
+    cmdCommands.forEach(cmd => {
+        const button = document.createElement('button');
+        button.textContent = cmd;
+        button.addEventListener('click', () => {
+            cmdInput.value = cmd + ' '; // Add space for parameters
+            cmdInput.focus();
+        });
+        cmdKeyboard.appendChild(button);
+    });
+}
+
+cmdBtn.addEventListener('click', () => {
+    if (!currentUserIsAdmin) {
+        showMessageBox("Bạn không có quyền truy cập CMD.");
+        return;
+    }
+    toggleModal(adminCmdModal, true);
+    cmdOutput.textContent = "Chào mừng đến với Admin CMD. Nhập lệnh để thực thi.";
+    generateCmdKeyboard();
+});
+
+executeCmdBtn.addEventListener('click', executeAdminCommand);
+cmdInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        executeAdminCommand();
+    }
+});
+
+async function executeAdminCommand() {
+    const command = cmdInput.value.trim();
+    cmdInput.value = ''; // Clear input
+    cmdOutput.textContent += `\n> ${command}\n`; // Display command in output
+
+    const parts = command.split(/\s+/);
+    const cmd = parts[0];
+    const targetId = parts[1]; // For user/group IDs
+
+    try {
+        switch (cmd) {
+            case ':pause':
+                if (targetId) await toggleUserPause(targetId, true);
+                else cmdOutput.textContent += "Lỗi: Cần ID người dùng. Cú pháp: :pause <id người dùng>\n";
+                break;
+            case ':unpause':
+                if (targetId) await toggleUserPause(targetId, false);
+                else cmdOutput.textContent += "Lỗi: Cần ID người dùng. Cú pháp: :unpause <id người dùng>\n";
+                break;
+            case ':clear':
+                if (targetId) await clearMessages(targetId);
+                else cmdOutput.textContent += "Lỗi: Cần ID người dùng hoặc ID nhóm. Cú pháp: :clear <id người dùng/nhóm>\n";
+                break;
+            case ':showgroup':
+                await showGroups();
+                break;
+            case ':showpeople':
+                await showPeople();
+                break;
+            case ':allpause':
+                await toggleAllPause(true);
+                break;
+            case ':unallpause':
+                await toggleAllPause(false);
+                break;
+            case ':allclear':
+                await clearAllMessages();
+                break;
+            case ':ban':
+                if (targetId) await banUser(targetId);
+                else cmdOutput.textContent += "Lỗi: Cần ID người dùng. Cú pháp: :ban <id người dùng>\n";
+                break;
+            default:
+                cmdOutput.textContent += "Lệnh không hợp lệ.\n";
+        }
+    } catch (e) {
+        console.error("CMD execution error:", e);
+        cmdOutput.textContent += `Lỗi thực thi lệnh: ${e.message || e}\n`;
+    }
+    cmdOutput.scrollTop = cmdOutput.scrollHeight; // Scroll to bottom
+}
+
+async function toggleUserPause(userId, pause) {
+    const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+    try {
+        await updateDoc(userProfileRef, { isPaused: pause });
+        cmdOutput.textContent += `Người dùng ${userId} đã ${pause ? 'bị khóa' : 'được mở khóa'} chat.\n`;
+        await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat của người dùng ${userId}.`);
+    } catch (e) {
+        cmdOutput.textContent += `Lỗi khi ${pause ? 'khóa' : 'mở khóa'} người dùng ${userId}: ${e.message}\n`;
+    }
+}
+
+async function clearMessages(targetId) {
+    // Determine if targetId is a user or a group
+    // For simplicity, assume if it matches a group ID, it's a group. Otherwise, a user.
+    const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, targetId);
+    const groupSnap = await getDoc(groupRef);
+
+    if (groupSnap.exists()) { // It's a group
+        const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${targetId}/messages`);
+        const q = query(messagesRef);
+        const snapshot = await getDocs(q);
+        const batch = db.batch();
+        snapshot.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        cmdOutput.textContent += `Đã xóa tất cả tin nhắn trong nhóm ${targetId}.\n`;
+        await sendSystemMessage(targetId, `Admin đã xóa tất cả tin nhắn trong nhóm này.`);
+    } else { // Assume it's a user ID
+        const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+        const groupsSnapshot = await getDocs(usersCollectionRef);
+
+        for (const groupDoc of groupsSnapshot.docs) {
+            const groupId = groupDoc.id;
+            const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
+            const q = query(messagesRef, where('senderId', '==', targetId));
+            const snapshot = await getDocs(q);
+            const batch = db.batch();
+            snapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+        }
+        cmdOutput.textContent += `Đã xóa tất cả tin nhắn của người dùng ${targetId} trên tất cả các nhóm.\n`;
+        await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn của người dùng ${targetId}.`);
+    }
+}
+
+async function showGroups() {
+    const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+    const q = query(groupsCollectionRef);
+    const snapshot = await getDocs(q);
+    cmdOutput.textContent += "Danh sách các nhóm:\n";
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Mật khẩu: ${data.password || 'Không có'}\n`;
+    });
+}
+
+async function showPeople() {
+    const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
+    const snapshot = await getDocs(usersCollectionRef);
+    cmdOutput.textContent += "Danh sách các tài khoản:\n";
+    for (const userDoc of snapshot.docs) {
+        const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
+        const profileSnap = await getDoc(profileDocRef);
+        if (profileSnap.exists()) {
+            const data = profileSnap.data();
+            cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Admin: ${data.isAdmin ? 'Có' : 'Không'}, IP: ${data.ipAddress}\n`;
+        }
+    }
+}
+
+async function toggleAllPause(pause) {
+    const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
+    const snapshot = await getDocs(usersCollectionRef);
+    const batch = db.batch();
+    snapshot.forEach(userDoc => {
+        const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
+        batch.update(profileDocRef, { isPaused: pause });
+    });
+    await batch.commit();
+    cmdOutput.textContent += `Đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng (trừ admin).\n`;
+    await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng.`);
+}
+
+async function clearAllMessages() {
+    const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+    const groupsSnapshot = await getDocs(groupsCollectionRef);
+
+    for (const groupDoc of groupsSnapshot.docs) {
+        const groupId = groupDoc.id;
+        const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
+        const q = query(messagesRef);
+        const snapshot = await getDocs(q);
+        const batch = db.batch();
+        snapshot.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+    }
+    cmdOutput.textContent += "Đã xóa tất cả tin nhắn trên tất cả các nhóm.\n";
+    await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
+}
+
+async function banUser(userId) {
+    if (userId === currentUser.id) {
+        cmdOutput.textContent += "Lỗi: Không thể tự cấm tài khoản của mình.\n";
+        return;
+    }
+
+    // 1. Remove user from all groups
+    const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+    const groupsSnapshot = await getDocs(groupsCollectionRef);
+
+    for (const groupDoc of groupsSnapshot.docs) {
+        const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupDoc.id);
+        const groupData = groupDoc.data();
+        const updatedMembers = (groupData.members || []).filter(member => member !== userId);
+        await updateDoc(groupRef, { members: updatedMembers });
+    }
+
+    // 2. Delete all messages sent by the user
+    await clearMessages(userId); // Re-use clearMessages for user's messages
+
+    // 3. Delete user's profile document
+    const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+    await deleteDoc(userProfileRef);
+
+    cmdOutput.textContent += `Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.\n`;
+    await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userId} khỏi hệ thống.`);
+}
+
