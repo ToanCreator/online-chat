@@ -85,7 +85,7 @@ const adminCmdModal = document.getElementById('admin-cmd-modal');
 const cmdInput = document.getElementById('cmd-input');
 const executeCmdBtn = document.getElementById('execute-cmd-btn');
 const cmdOutput = document.getElementById('cmd-output');
-const cmdKeyboard = document.getElementById('cmd-keyboard');
+const cmdKeyboard = document = document.getElementById('cmd-keyboard');
 
 const messageBox = document.getElementById('message-box');
 const messageBoxText = document.getElementById('message-box-text');
@@ -210,21 +210,32 @@ async function fetchUserIpAddress() {
 
 // Initial sign-in logic
 async function initializeAuth() {
-    if (isFirebaseInitialized) return; // Prevent re-initialization
+    if (isFirebaseInitialized) {
+        console.log("Firebase already initialized. Skipping re-initialization.");
+        return; // Prevent re-initialization
+    }
 
     console.log("Initializing Firebase Auth...");
     try {
+        let userCredential;
         if (initialAuthToken) {
-            const userCredential = await signInWithCustomToken(auth, initialAuthToken);
-            console.log("Signed in with custom token. User UID:", userCredential.user.uid);
+            userCredential = await signInWithCustomToken(auth, initialAuthToken);
+            console.log("Signed in with custom token. User UID:", userCredential.user.uid, "Email:", userCredential.user.email);
         } else {
-            const userCredential = await signInAnonymously(auth);
+            userCredential = await signInAnonymously(auth);
             console.log("Signed in anonymously. User UID:", userCredential.user.uid);
         }
         isFirebaseInitialized = true; // Mark Firebase as initialized
+        // Manually trigger handleAuthStateAndUI if onAuthStateChanged doesn't fire immediately
+        // This is a fallback, onAuthStateChanged should ideally handle it.
+        if (userCredential && userCredential.user) {
+            handleAuthStateAndUI(userCredential.user);
+        }
     } catch (error) {
-        console.error("Error during initial Firebase sign-in:", error);
+        console.error("Error during initial Firebase sign-in (initializeAuth):", error);
         showMessageBox(`Lỗi khởi tạo đăng nhập: ${error.code || error.message}. Vui lòng kiểm tra cấu hình Firebase Auth (đặc biệt là Anonymous Authentication).`);
+        isFirebaseInitialized = true; // Still mark as initialized to avoid infinite loops, but with error
+        handleAuthStateAndUI(null); // Ensure UI state is updated to show auth modal
     }
 }
 
@@ -993,17 +1004,9 @@ groupInfoBtn.addEventListener('click', async () => {
     } catch (error) {
         console.error("Error fetching group info:", error);
         showMessageBox(`Lỗi khi tải thông tin nhóm: ${error.code || error.message}.`);
-        return;
     }
-
-    infoGroupName.textContent = activeGroupData.name;
-    infoGroupCreator.textContent = activeGroupData.creatorName;
-    infoGroupId.textContent = activeGroupData.id;
-    infoGroupCreationDate.textContent = formatTimestamp(activeGroupData.createdAt);
-    infoMemberCount.textContent = (activeGroupData.members ? activeGroupData.members.length : 0);
-
-    toggleModal(groupInfoModal, true);
-});
+}
+);
 
 inviteUserBtn.addEventListener('click', () => {
     if (!activeGroupId) {
