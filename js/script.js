@@ -208,18 +208,38 @@ function setupEventListeners() {
             console.log('Google admin button listener added');
         }
 
-        // 3. Terms modal
+        // 3. Terms modal - Phiên bản sửa lỗi
         if (agreeTermsCheckbox && startChatFinalBtn) {
+            // Đảm bảo nút disabled ban đầu
+            startChatFinalBtn.disabled = true;
+            // Xử lý sự kiện checkbox
             agreeTermsCheckbox.addEventListener('change', function() {
-                startChatFinalBtn.disabled = !this.checked;
+                const isChecked = this.checked;
+                startChatFinalBtn.disabled = !isChecked;
+                console.log('Terms checkbox:', isChecked);
+                
             });
-            console.log('Terms checkbox listener added');
-        }
-        
-        if (startChatFinalBtn) {
-            startChatFinalBtn.addEventListener('click', registerUser);
-            console.log('Start chat final button listener added');
-        }
+            
+            // Xử lý sự kiện click nút
+            startChatFinalBtn.addEventListener('click', function(e) {
+                console.log('Final start button clicked');
+                
+                // Kiểm tra lại checkbox (đề phòng)
+                if (!agreeTermsCheckbox.checked) {
+                    alert('Vui lòng đồng ý với điều khoản trước khi tiếp tục');
+                    return;
+                   
+                }
+                
+                // Thêm hiệu ứng loading
+                startChatFinalBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+                startChatFinalBtn.disabled = true;
+                // Gọi hàm đăng ký
+                registerUser();
+               
+            });
+            console.log('Terms section initialized');
+}
 
         // 4. Chat interface
         if (themeSwitch) {
