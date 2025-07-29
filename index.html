@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dô La - Trò chuyện không đăng nhập</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+</head>
+<body>
+    <!-- Welcome Screen -->
+    <div id="welcome-screen" class="screen">
+        <div class="welcome-content">
+            <h1>Dô La</h1>
+            <p>trò chuyện không đăng nhập,...</p>
+            <button id="start-chat-btn" class="chat-btn">CHAT NGAY</button>
+        </div>
+    </div>
+
+    <!-- Registration Modal -->
+    <div id="registration-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>Đăng kí</h2>
+            <form id="registration-form">
+                <div class="form-group">
+                    <label for="username">Họ và Tên (tối đa 20 ký tự):</label>
+                    <input type="text" id="username" maxlength="20" required pattern="[a-zA-Z0-9\s]+">
+                </div>
+                <div class="form-group">
+                    <div class="g-recaptcha" data-sitekey="6LcFRFYrAAAAAN8D0eXjMWkOUdlro3LPhuadhE7J"></div>
+                </div>
+                <button type="button" id="setup-btn" class="setup-btn">Thiết lập</button>
+                <button type="button" id="google-admin-btn" class="google-btn">
+                    <i class="fab fa-google"></i> Đăng nhập với Google (Admin only)
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Terms Modal -->
+    <div id="terms-modal" class="modal">
+        <div class="modal-content">
+            <h2>Điều khoản sử dụng</h2>
+            <ul class="terms-list">
+                <li>1. Giao tiếp văn minh, ứng xử lịch sự trên không gian mạng</li>
+                <li>2. Không spam tin nhắn, gây rối</li>
+                <li>3. Không chia sẻ thông tin nhạy cảm</li>
+                <li>4. Dữ liệu của bạn được giám sát và quản lý bởi Toàn Creator</li>
+            </ul>
+            <div class="terms-agreement">
+                <input type="checkbox" id="agree-terms">
+                <label for="agree-terms">Tích vào ô này nếu bạn đồng ý hết các điều khoản trên</label>
+            </div>
+            <button id="start-chat-final-btn" class="start-btn" disabled>Bắt đầu</button>
+        </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chat-interface" class="screen hidden">
+        <div class="sidebar">
+            <div class="user-profile">
+                <div class="avatar">
+                    <img src="https://i.ibb.co/0QN4q0S/default-avatar.jpg" alt="Avatar">
+                </div>
+                <div class="user-info">
+                    <h3 id="display-name">Nguyễn Văn A</h3>
+                    <p id="user-id">ID: 243646485918</p>
+                    <p id="account-created">13:24 - 30/07/2025</p>
+                </div>
+            </div>
+            <div class="contacts">
+                <div class="contact-header">
+                    <h4>Kết Nối</h4>
+                </div>
+                <div class="contact-list">
+                    <div class="contact-item add-group">
+                        <div class="contact-avatar">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <span>Tạo/Tham gia nhóm</span>
+                    </div>
+                    <div class="contact-item main-group selected">
+                        <div class="contact-avatar">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <span>Dô la - ToanCreator</span>
+                    </div>
+                    <!-- More groups will be added here dynamically -->
+                </div>
+            </div>
+            <div class="theme-toggle">
+                <label class="switch">
+                    <input type="checkbox" id="theme-switch">
+                    <span class="slider round"></span>
+                </label>
+                <span>Giao diện sáng/tối</span>
+            </div>
+        </div>
+        <div class="chat-main">
+            <div class="chat-header">
+                <h3 id="current-group-name">Dô la - ToanCreator</h3>
+                <div class="group-actions">
+                    <button class="group-action-btn" id="group-info-btn"><i class="fas fa-info-circle"></i></button>
+                    <button class="group-action-btn" id="add-member-btn"><i class="fas fa-user-plus"></i></button>
+                    <button class="group-action-btn" id="delete-group-btn"><i class="fas fa-trash"></i></button>
+                    <button class="group-action-btn" id="admin-cmd-btn"><i class="fas fa-terminal"></i></button>
+                </div>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                <!-- Messages will be added here dynamically -->
+            </div>
+            <div class="chat-input">
+                <div class="message-box">
+                    <input type="text" id="message-input" placeholder="Nhập tin nhắn..." maxlength="1000">
+                    <button id="send-btn"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Info Modal -->
+    <div id="group-info-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>Thông tin nhóm</h2>
+            <div class="group-info">
+                <p><strong>Tên nhóm:</strong> <span id="info-group-name"></span></p>
+                <p><strong>Người tạo:</strong> <span id="info-group-creator"></span></p>
+                <p><strong>ID nhóm:</strong> <span id="info-group-id"></span></p>
+                <p><strong>Ngày tạo:</strong> <span id="info-group-created"></span></p>
+                <p><strong>Thành viên:</strong> <span id="info-group-members"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Group Modal -->
+    <div id="add-group-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>Tạo/Tham gia nhóm</h2>
+            <div class="tabs">
+                <button class="tab-btn active" id="create-tab">Tạo nhóm</button>
+                <button class="tab-btn" id="join-tab">Tham gia nhóm</button>
+            </div>
+            <div id="create-group-content" class="tab-content active">
+                <form id="create-group-form">
+                    <div class="form-group">
+                        <label for="new-group-name">Tên nhóm (tối đa 15 ký tự):</label>
+                        <input type="text" id="new-group-name" maxlength="15" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="group-password">Mật khẩu (tối đa 8 ký tự):</label>
+                        <input type="password" id="group-password" maxlength="8" required>
+                    </div>
+                    <button type="submit" class="create-btn">Tạo</button>
+                </form>
+            </div>
+            <div id="join-group-content" class="tab-content">
+                <form id="join-group-form">
+                    <div class="form-group">
+                        <label for="group-id">ID nhóm:</label>
+                        <input type="text" id="group-id" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="join-password">Mật khẩu:</label>
+                        <input type="password" id="join-password" required>
+                    </div>
+                    <button type="submit" class="join-btn">Tham gia</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Member Modal -->
+    <div id="add-member-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>Mời thành viên</h2>
+            <form id="add-member-form">
+                <div class="form-group">
+                    <label for="member-id">ID người dùng:</label>
+                    <input type="text" id="member-id" required>
+                </div>
+                <button type="submit" class="invite-btn">Mời</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Group Modal -->
+    <div id="delete-group-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>Xóa nhóm</h2>
+            <form id="delete-group-form">
+                <div class="form-group">
+                    <label for="confirm-password">Nhập mật khẩu nhóm để xác nhận:</label>
+                    <input type="password" id="confirm-password" required>
+                </div>
+                <button type="submit" class="delete-btn">Xóa</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin CMD Modal -->
+    <div id="admin-cmd-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>Admin Command Center</h2>
+            <div id="admin-login-prompt" class="admin-section">
+                <p>Vui lòng đăng nhập bằng tài khoản Google Admin để sử dụng tính năng này.</p>
+                <button id="admin-google-btn" class="google-btn">
+                    <i class="fab fa-google"></i> Đăng nhập với Google
+                </button>
+            </div>
+            <div id="admin-commands" class="admin-section hidden">
+                <div class="cmd-input">
+                    <input type="text" id="cmd-input" placeholder="Nhập lệnh...">
+                    <button id="execute-cmd-btn"><i class="fas fa-play"></i></button>
+                </div>
+                <div class="cmd-output" id="cmd-output">
+                    <!-- Command output will be displayed here -->
+                </div>
+                <div class="cmd-reference">
+                    <h4>Danh sách lệnh:</h4>
+                    <ul>
+                        <li><code>:pause &lt;id người dùng&gt;</code> - Khoá chat của người dùng</li>
+                        <li><code>:unpause &lt;id người dùng&gt;</code> - Mở chat cho người dùng</li>
+                        <li><code>:delete &lt;id người dùng&gt;</code> - Xoá người dùng khỏi nhóm</li>
+                        <li><code>:clear &lt;id người dùng&gt;</code> - Xoá tin nhắn của người dùng</li>
+                        <li><code>:clear &lt;id nhóm&gt;</code> - Xoá mọi tin nhắn trong nhóm</li>
+                        <li><code>:showgroup</code> - Hiển thị tất cả nhóm</li>
+                        <li><code>:showpeople</code> - Hiển thị tất cả người dùng</li>
+                        <li><code>:allpause</code> - Khoá chat tất cả (trừ admin)</li>
+                        <li><code>:unallpause</code> - Mở chat cho tất cả</li>
+                        <li><code>:allclear</code> - Xoá mọi tin nhắn</li>
+                        <li><code>:ban &lt;id người dùng&gt;</code> - Xoá tài khoản người dùng</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
