@@ -732,6 +732,12 @@ agreeTermsCheckbox.addEventListener('change', () => {
 });
 
 function updateStartChatButtonState() {
+    // Log the values that determine the button state
+    console.log("Updating Start Chat button state:");
+    console.log("  agreeTermsCheckbox.checked:", agreeTermsCheckbox.checked);
+    console.log("  firebaseAuthChecked:", firebaseAuthChecked);
+    console.log("  currentUserId:", currentUserId);
+
     if (agreeTermsCheckbox.checked && firebaseAuthChecked && currentUserId) {
         startChatBtn.disabled = false;
         startChatBtn.classList.remove('disabled');
@@ -739,7 +745,7 @@ function updateStartChatButtonState() {
     } else {
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
-        console.log("Start Chat button disabled. Checked:", agreeTermsCheckbox.checked, "AuthChecked:", firebaseAuthChecked, "UserId:", currentUserId);
+        console.log("Start Chat button disabled.");
     }
 }
 
@@ -836,10 +842,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.add('dark-theme');
         themeSwitch.checked = true;
     }
-    // Call initial auth setup when DOM is ready
     initializeAuth();
-    // Initial state for the Start Chat button
-    updateStartChatButtonState();
+    // Initial state for the Start Chat button is handled by onAuthStateChanged now.
+    // No need to call updateStartChatButtonState() here initially, as it will be called by onAuthStateChanged.
 });
 
 
