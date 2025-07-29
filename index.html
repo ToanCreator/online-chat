@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dô La - ToanCreator Chat</title>
+    <!-- IMPORTANT: This base tag is crucial for GitHub Pages serving from a sub-directory -->
+    <!-- It tells the browser where to find relative paths like css/style.css and js/script.js -->
+    <base href="/online-chat/"> 
+
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- reCAPTCHA v2 -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+</head>
+<body>
+    <!-- Start Screen -->
+    <div id="start-screen" class="start-screen">
+        <div class="logo">
+            <svg class="heart-icon" viewBox="0 0 24 24" fill="red" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+            <div class="chat-bubble">
+                <span class="chat-text">Dô La</span>
+            </div>
+        </div>
+        <h1>trò chuyện không đăng nhập,...</h1>
+        <button id="chat-now-btn" class="chat-now-button">CHAT NGAY</button>
+    </div>
+
+    <!-- Registration/Login Modal -->
+    <div id="auth-modal" class="modal">
+        <div class="modal-content auth-modal-content">
+            <span class="close-button">&times;</span>
+            <h2 class="modal-title">Đăng kí</h2>
+            <div class="input-group">
+                <label for="full-name">Họ và Tên:</label>
+                <input type="text" id="full-name" placeholder="Nhập Họ và Tên của bạn" maxlength="20">
+                <p class="input-hint">Tối đa 20 ký tự (chỉ chữ và số)</p>
+            </div>
+            <div class="g-recaptcha" data-sitekey="6LcFRFYrAAAAAN8D0eXjMWkOUdlro3LPhuadhE7J"></div>
+            <button id="setup-btn" class="setup-button disabled" disabled>Thiết lập</button>
+            <button id="google-login-btn" class="google-login-button">
+                <i class="fab fa-google"></i> Đăng nhập với Google (Admin only)
+            </button>
+        </div>
+    </div>
+
+    <!-- Terms and Conditions Modal -->
+    <div id="terms-modal" class="modal">
+        <div class="modal-content terms-modal-content">
+            <h2 class="modal-title">Điều khoản sử dụng</h2>
+            <p>+1. Giao tiếp văn minh, ứng xử lịch sự trên không gian mạng</p>
+            <p>+2. Không spam tin nhắn, gây rối</p>
+            <p>+3. Không chia sẻ thông tin nhạy cảm</p>
+            <p>+4. Dữ liệu của bạn được giám sát và quản lý bởi Toàn Creator</p>
+            <label class="checkbox-container">
+                <input type="checkbox" id="agree-terms">
+                <div class="checkmark"></div>
+                Tích vào ô này nếu bạn đồng ý hết các điều khoản trên
+            </label>
+            <button id="start-chat-btn" class="start-chat-button disabled" disabled>Bắt đầu</button>
+        </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chat-interface" class="chat-interface hidden">
+        <div class="left-panel">
+            <div class="user-profile">
+                <img src="https://placehold.co/100x100/000000/FFFFFF?text=AVT" alt="Ảnh đại diện" class="avatar">
+                <div class="user-info">
+                    <p class="user-name"></p>
+                    <p class="user-id"></p>
+                    <p class="account-creation-time"></p>
+                </div>
+            </div>
+            <div class="contact-list">
+                <div class="contact-item create-join-group">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>Tạo Nhóm/Tham Gia Nhóm</span>
+                </div>
+                <!-- Default group -->
+                <div class="contact-item group-item active" data-group-id="default-group">
+                    <div class="group-icon"></div>
+                    <span>Dô la - ToanCreator</span>
+                </div>
+                <!-- Other groups will be added here -->
+            </div>
+            <div class="theme-toggle">
+                <span class="toggle-text">Giao diện sáng/tối</span>
+                <label class="switch">
+                    <input type="checkbox" id="theme-switch">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="chat-header">
+                <h2 class="group-name-display">Dô la - ToanCreator</h2>
+                <div class="header-icons">
+                    <button class="icon-button" id="group-info-btn"><i class="fas fa-info-circle"></i></button>
+                    <button class="icon-button" id="invite-user-btn"><i class="fas fa-user-plus"></i></button>
+                    <button class="icon-button" id="delete-group-btn"><i class="fas fa-trash-alt"></i></button>
+                    <button class="icon-button admin-only hidden" id="cmd-btn"><i class="fas fa-terminal"></i> CMD</button>
+                </div>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                <!-- Messages will be loaded here -->
+            </div>
+            <div class="message-input-area">
+                <button class="upload-image-btn" id="upload-image-btn" title="Tính năng này chưa được hỗ trợ">
+                    <i class="fas fa-image"></i>
+                </button>
+                <textarea id="message-input" placeholder="Nhập tin nhắn của bạn (tối đa 1000 từ)" maxlength="1000"></textarea>
+                <button id="send-message-btn" class="send-message-button">Gửi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals for chat interface features -->
+    <!-- Create/Join Group Modal -->
+    <div id="create-join-group-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 class="modal-title">Tạo Nhóm / Tham Gia Nhóm</h2>
+            <div class="button-group">
+                <button id="show-create-group-form" class="modal-action-button">Tạo Nhóm Mới</button>
+                <button id="show-join-group-form" class="modal-action-button">Tham Gia Nhóm</button>
+            </div>
+
+            <div id="create-group-form" class="hidden">
+                <div class="input-group">
+                    <label for="new-group-name">Tên Nhóm (tối đa 15 ký tự):</label>
+                    <input type="text" id="new-group-name" maxlength="15">
+                </div>
+                <div class="input-group">
+                    <label for="new-group-password">Mật khẩu (tối đa 8 ký tự):</label>
+                    <input type="password" id="new-group-password" maxlength="8">
+                </div>
+                <button id="create-group-btn" class="modal-action-button">Tạo</button>
+            </div>
+
+            <div id="join-group-form" class="hidden">
+                <div class="input-group">
+                    <label for="join-group-id">ID Nhóm:</label>
+                    <input type="text" id="join-group-id">
+                </div>
+                <button id="join-group-btn" class="modal-action-button">Tham Gia</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Info Modal -->
+    <div id="group-info-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 class="modal-title">Thông tin nhóm</h2>
+            <p><strong>Tên nhóm:</strong> <span id="info-group-name"></span></p>
+            <p><strong>Người tạo:</strong> <span id="info-group-creator"></span></p>
+            <p><strong>ID nhóm:</strong> <span id="info-group-id"></span></p>
+            <p><strong>Ngày tạo:</strong> <span id="info-group-creation-date"></span></p>
+            <p><strong>Số lượng thành viên:</strong> <span id="info-member-count"></span></p>
+        </div>
+    </div>
+
+    <!-- Invite User Modal -->
+    <div id="invite-user-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 class="modal-title">Mời thành viên</h2>
+            <div class="input-group">
+                <label for="invite-user-id">ID Người dùng:</label>
+                <input type="text" id="invite-user-id" placeholder="Nhập ID người dùng để mời">
+            </div>
+            <button id="send-invite-btn" class="modal-action-button">Gửi lời mời</button>
+        </div>
+    </div>
+
+    <!-- Delete Group Modal -->
+    <div id="delete-group-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 class="modal-title">Xác nhận xóa nhóm</h2>
+            <p>Bạn có chắc chắn muốn xóa nhóm này? Thao tác này sẽ xóa toàn bộ tin nhắn trong nhóm.</p>
+            <div class="input-group">
+                <label for="delete-group-password">Mật khẩu nhóm:</label>
+                <input type="password" id="delete-group-password" placeholder="Nhập mật khẩu nhóm">
+            </div>
+            <button id="confirm-delete-group-btn" class="modal-action-button delete-button">Xóa nhóm</button>
+        </div>
+    </div>
+
+    <!-- Admin CMD Modal -->
+    <div id="admin-cmd-modal" class="modal">
+        <div class="modal-content admin-cmd-content">
+            <span class="close-button">&times;</span>
+            <h2 class="modal-title">Admin CMD</h2>
+            <div class="cmd-output" id="cmd-output"></div>
+            <div class="cmd-input-area">
+                <input type="text" id="cmd-input" placeholder="Nhập lệnh CMD...">
+                <button id="execute-cmd-btn" class="modal-action-button">Thực thi</button>
+            </div>
+            <div class="cmd-keyboard" id="cmd-keyboard">
+                <!-- CMD keyboard buttons will be generated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Box for alerts -->
+    <div id="message-box" class="message-box hidden">
+        <div class="message-box-content">
+            <p id="message-box-text"></p>
+            <button id="message-box-ok-btn">OK</button>
+        </div>
+    </div>
+
+    <!-- Main JavaScript file (now a module) -->
+    <script type="module" src="js/script.js"></script>
+</body>
+</html>
