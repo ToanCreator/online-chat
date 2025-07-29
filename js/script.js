@@ -1,3 +1,5 @@
+// Ở đầu file script.js
+let userIdValue = null; // Khai báo ngoài hàm
 // Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCCdfy0t-EFhx4vTaoKLPWga76mUofHCXA",
@@ -251,31 +253,47 @@ function showTermsModal() {
 
 // Register user
 function registerUser() {
-    const username = usernameInput.value.trim();
-    
-    // Validate
-    if (!username || username.length > 20) {
-        alert('Tên phải từ 1-20 ký tự');
-        return;
-    }
+    try {
+        const username = usernameInput.value.trim();
+        
+        // Validate username
+        if (!username || username.length > 20) {
+            alert('Tên phải từ 1-20 ký tự');
+            return;
+        }
 
-    const userIdValue = Date.now();
-    const createdAt = new Date().toLocaleString('vi-VN');
-    
-    currentUser = { username, userId: userIdValue, createdAt, ip: userIP };
+        // Tạo ID người dùng (THÊM DÒNG NÀY)
+        const userIdValue = Date.now() + Math.floor(Math.random() * 1000);
+        const createdAt = new Date().toLocaleString('vi-VN');
+        
+        currentUser = {
+            username,
+            userId: userIdValue,  // SỬ DỤNG BIẾN ĐÃ KHAI BÁO
+            createdAt,
+            ip: userIP
+        };
 
-    // Lưu đồng thời vào 2 nơi
-    Promise.all([
-        localStorage.setItem('chatUser', JSON.stringify(currentUser)),
-        database.ref('users/' + userIdValue).set(currentUser)
-    ]).then(() => {
-        return joinDefaultGroup();
-    }).then(() => {
-        showChatInterface();
-    }).catch(error => {
-        console.error('Lỗi đăng ký:', error);
+        console.log('Đang đăng ký user:', currentUser); // Log kiểm tra
+
+        // Lưu vào localStorage
+        localStorage.setItem('chatUser', JSON.stringify(currentUser));
+
+        // Lưu vào Firebase
+        return database.ref('users/' + userIdValue).set({
+            username,
+            createdAt,
+            ip: userIP
+        }).then(() => {
+            console.log('Đăng ký Firebase thành công');
+            termsModal.style.display = 'none';
+            showChatInterface();
+            return joinDefaultGroup();
+        });
+    } catch (error) {
+        console.error('Lỗi trong quá trình đăng ký:', error);
         alert('Lỗi hệ thống: ' + error.message);
-    });
+        throw error; // Re-throw để bắt lỗi ở nơi gọi hàm
+    }
 }
 
 // Show chat interface
