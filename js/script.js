@@ -173,14 +173,35 @@ function generateUniqueId() {
 
 /**
  * Formats a timestamp into a readable date and time string.
- * @param {firebase.firestore.Timestamp|Date} timestamp - The timestamp to format.
+ * Handles cases where timestamp might not be a Firestore Timestamp object.
+ * @param {firebase.firestore.Timestamp|Date|any} timestamp - The timestamp to format.
  * @returns {string} Formatted date and time.
  */
 function formatTimestamp(timestamp) {
-    const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
+    let date;
+    // Check if it's a Firestore Timestamp object
+    if (timestamp && typeof timestamp.toDate === 'function') {
+        date = timestamp.toDate();
+    } else if (timestamp instanceof Date) {
+        date = timestamp;
+    } else {
+        // Fallback for non-Timestamp or invalid values (e.g., plain object, number, string)
+        // Try to create a Date object from it, or use current date if all else fails.
+        try {
+            date = new Date(timestamp);
+            if (isNaN(date.getTime())) { // Check for invalid date
+                date = new Date(); // Fallback to current date
+            }
+        } catch (e) {
+            console.warn("Invalid timestamp format, falling back to current date:", timestamp, e);
+            date = new Date(); // Fallback to current date
+        }
+    }
+
     const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
     return date.toLocaleDateString('vi-VN', options);
 }
+
 
 /**
  * Validates full name input (alphanumeric only, max 20 chars).
