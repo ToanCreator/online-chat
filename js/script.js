@@ -1,24 +1,28 @@
-// Ensure Firebase variables are available globally from index.html script
-const db = window.db;
-const auth = window.auth;
-const GoogleAuthProvider = window.GoogleAuthProvider;
-const signInWithPopup = window.signInWithPopup;
-const signOut = window.signOut;
-const onAuthStateChanged = window.onAuthStateChanged;
-const doc = window.doc;
-const getDoc = window.getDoc;
-const setDoc = window.setDoc;
-const updateDoc = window.updateDoc;
-const deleteDoc = window.deleteDoc;
-const onSnapshot = window.onSnapshot;
-const collection = window.collection;
-const query = window.query;
-const where = window.where;
-const addDoc = window.addDoc;
-const getDocs = window.getDocs;
-const serverTimestamp = window.serverTimestamp;
-const appId = window.appId;
-const initialAuthToken = window.initialAuthToken;
+// Firebase configuration from the user's prompt
+const firebaseConfig = {
+    apiKey: "AIzaSyD4ja8kpnQNeWhfpgcKsbC9UNOyVC_ibyo",
+    authDomain: "toancreator-online-chat.firebaseapp.com",
+    projectId: "toancreator-online-chat",
+    storageBucket: "toancreator-online-chat.firebasestorage.app",
+    messagingSenderId: "683126416659",
+    appId: "1:683126416659:web:2fe64da2f203dac119e6e6",
+    measurementId: "G-4ZYYCLPSF5"
+};
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+// App ID from Canvas environment (if available)
+// These global variables are provided by the Canvas environment and should be accessible directly in a module script.
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'toancreator-online-chat';
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
 // --- DOM Elements ---
 const startScreen = document.getElementById('start-screen');
@@ -200,6 +204,16 @@ async function fetchUserIpAddress() {
 
 // --- Firebase Authentication and User Management ---
 
+// Sign in logic (moved from index.html)
+if (initialAuthToken) {
+    signInWithCustomToken(auth, initialAuthToken).catch((error) => {
+        console.error("Error signing in with custom token:", error);
+        signInAnonymously(auth); // Fallback to anonymous if custom token fails
+    });
+} else {
+    signInAnonymously(auth);
+}
+
 // Listen for Firebase Auth state changes
 onAuthStateChanged(auth, async (user) => {
     currentUserId = user ? user.uid : null;
@@ -254,26 +268,32 @@ onAuthStateChanged(auth, async (user) => {
  */
 async function loadUserData(uid, ip) {
     const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
-    const userDocSnap = await getDoc(userDocRef);
+    try {
+        const userDocSnap = await getDoc(userDocRef);
 
-    if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        // Check if IP matches (for basic short-term IP-based account persistence)
-        if (userData.ipAddress === ip || currentUserIsAdmin) { // Admins bypass IP check
-            currentUser = userData;
-            currentUserName = currentUser.name;
-            console.log("Existing user data loaded:", currentUser);
-            return true;
+        if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            // Check if IP matches (for basic short-term IP-based account persistence)
+            if (userData.ipAddress === ip || currentUserIsAdmin) { // Admins bypass IP check
+                currentUser = userData;
+                currentUserName = currentUser.name;
+                console.log("Existing user data loaded:", currentUser);
+                return true;
+            } else {
+                console.warn("IP address mismatch for existing user. Treating as new session.");
+                // If IP doesn't match, treat as new session for non-admin users
+                // This means they won't automatically log in with their old profile
+                // and will be prompted to register again.
+                currentUser = null;
+                return false;
+            }
         } else {
-            console.warn("IP address mismatch for existing user. Treating as new session.");
-            // If IP doesn't match, treat as new session for non-admin users
-            // This means they won't automatically log in with their old profile
-            // and will be prompted to register again.
+            console.log("No existing user data found for UID:", uid);
             currentUser = null;
             return false;
         }
-    } else {
-        console.log("No existing user data found for UID:", uid);
+    } catch (error) {
+        console.error("Error loading user data:", error);
         currentUser = null;
         return false;
     }
@@ -778,8 +798,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.add('dark-theme');
         themeSwitch.checked = true;
     }
-    // IP address fetch is now primarily handled by onAuthStateChanged for robustness.
-    // This ensures IP is available when auth state is determined.
 });
 
 
@@ -1166,7 +1184,7 @@ async function toggleUserPause(userId, pause) {
 
 async function clearMessages(targetId) {
     // Determine if targetId is a user or a group
-    // For simplicity, assume if it matches a group ID, it's a group. Otherwise, a user.
+    // For simplicity, assume if it's a group ID, it's a group. Otherwise, a user.
     const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, targetId);
     const groupSnap = await getDoc(groupRef);
 
