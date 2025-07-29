@@ -251,30 +251,31 @@ function showTermsModal() {
 
 // Register user
 function registerUser() {
-    try {
-        // ... (phần code hiện có)
-        
-        database.ref('users/' + userIdValue).set({
-            username,
-            createdAt,
-            ip: userIP
-        }).then(() => {
-            console.log('Dữ liệu đã lưu lên Firebase');
-            
-            // Thêm delay để đảm bảo dữ liệu được xử lý
-            setTimeout(() => {
-                showChatInterface();
-                joinDefaultGroup();
-            }, 500);
-            
-        }).catch(error => {
-            console.error('Lỗi Firebase:', error);
-            alert('Lỗi kết nối database. Chi tiết: ' + error.message);
-        });
-    } catch (e) {
-        console.error('Lỗi xử lý đăng ký:', e);
-        alert('Lỗi hệ thống: ' + e.message);
+    const username = usernameInput.value.trim();
+    
+    // Validate
+    if (!username || username.length > 20) {
+        alert('Tên phải từ 1-20 ký tự');
+        return;
     }
+
+    const userIdValue = Date.now();
+    const createdAt = new Date().toLocaleString('vi-VN');
+    
+    currentUser = { username, userId: userIdValue, createdAt, ip: userIP };
+
+    // Lưu đồng thời vào 2 nơi
+    Promise.all([
+        localStorage.setItem('chatUser', JSON.stringify(currentUser)),
+        database.ref('users/' + userIdValue).set(currentUser)
+    ]).then(() => {
+        return joinDefaultGroup();
+    }).then(() => {
+        showChatInterface();
+    }).catch(error => {
+        console.error('Lỗi đăng ký:', error);
+        alert('Lỗi hệ thống: ' + error.message);
+    });
 }
 
 // Show chat interface
@@ -299,42 +300,30 @@ function showChatInterface() {
 // Join default group
 function joinDefaultGroup() {
     const defaultGroupId = 'default-group';
-    currentGroup = defaultGroupId;
-    currentGroupName.textContent = 'Dô la - ToanCreator';
     
-    // Kiểm tra nếu user đã trong nhóm
-    database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId).once('value')
-        .then(snapshot => {
-            if (!snapshot.exists()) {
-                // Thêm user vào nhóm
-                database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId).set({
+    return new Promise((resolve) => {
+        database.ref('groups/' + defaultGroupId).once('value').then(snap => {
+            if (!snap.exists()) {
+                // Tạo nhóm mặc định nếu chưa tồn tại
+                database.ref('groups/' + defaultGroupId).set({
+                    name: "Dô la - ToanCreator",
+                    creatorId: "system",
+                    createdAt: new Date().toLocaleString('vi-VN')
+                });
+            }
+
+            // Thêm user vào nhóm
+            database.ref('groupMembers/' + defaultGroupId + '/' + currentUser.userId)
+                .set({
                     username: currentUser.username,
                     joinedAt: new Date().toLocaleString('vi-VN')
+                })
+                .then(() => {
+                    currentGroup = defaultGroupId;
+                    resolve();
                 });
-                
-                // Thêm nhóm vào userGroups
-                database.ref('userGroups/' + currentUser.userId + '/' + defaultGroupId).set({
-                    groupName: 'Dô la - ToanCreator',
-                    joinedAt: new Date().toLocaleString('vi-VN')
-                });
-                
-                // Gửi thông báo chào mừng
-                const welcomeMessage = {
-                    senderId: 'system',
-                    senderName: 'Hệ thống',
-                    content: currentUser.username + ' đã tham gia nhóm',
-                    timestamp: new Date().toLocaleString('vi-VN'),
-                    type: 'notification'
-                };
-                database.ref('messages/' + defaultGroupId).push(welcomeMessage);
-            }
-            
-            // Load tin nhắn
-            loadMessages(defaultGroupId);
-        })
-        .catch(error => {
-            console.error('Lỗi khi tham gia nhóm mặc định:', error);
         });
+    });
 }
 
 // Load user groups
