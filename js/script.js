@@ -104,6 +104,8 @@ let activeGroupData = null; // Stores data for the currently active group
 let firebaseAuthChecked = false; // True when onAuthStateChanged has run at least once
 let isFirebaseInitialized = false; // True when Firebase app and services are initialized
 let isUserSessionLoaded = false; // True when user data (currentUser) is loaded from Firestore
+// Biến toàn cục cho bộ đếm ngược
+let countdownInterval = null;
 
 const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
 const userColorMap = {}; // Map to store unique colors for user IDs
@@ -298,6 +300,16 @@ async function handleAuthStateAndUI(user) {
     currentUserId = user ? user.uid : null;
     console.log("onAuthStateChanged fired. User:", user ? user.uid : "null");
     console.log("Current currentUserId after onAuthStateChanged:", currentUserId); // Log currentUserId here
+    
+    if (user) {
+        // Kiểm tra nếu người dùng bị cấm
+        const userProfileRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'data');
+        const userSnap = await getDoc(userProfileRef);
+        
+    if (!userSnap.exists()) {
+            showBanNotification("Người dùng", user.uid);
+            return;
+    }
 
     if (!userIpAddress || userIpAddress === 'unknown') {
         await fetchUserIpAddress();
@@ -843,6 +855,44 @@ setupBtn.addEventListener('click', () => {
 
 agreeTermsCheckbox.addEventListener('change', () => {
     updateStartChatButtonState();
+});
+
+
+
+// Hàm bắt đầu đếm ngược
+function startCountdown() {
+    const countdownElement = document.getElementById('countdown-timer');
+    const startChatBtn = document.getElementById('start-chat-btn');
+    let timeLeft = 60;
+    
+    countdownElement.textContent = `Vui lòng đợi ${timeLeft} giây...`;
+    startChatBtn.disabled = true;
+    startChatBtn.classList.add('disabled');
+    
+    clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        timeLeft--;
+        countdownElement.textContent = `Vui lòng đợi ${timeLeft} giây...`;
+        
+        if (timeLeft <= 0) {
+            clearInterval(countdownInterval);
+            countdownElement.textContent = "Bây giờ bạn có thể bắt đầu!";
+            startChatBtn.disabled = false;
+            startChatBtn.classList.remove('disabled');
+        }
+    }, 1000);
+}
+
+// Gọi hàm startCountdown khi hiển thị modal điều khoản
+setupBtn.addEventListener('click', () => {
+    // ... code hiện tại ...
+    toggleModal(termsModal, true);
+    startCountdown(); // Bắt đầu đếm ngược
+});
+
+// Xử lý khi rời khỏi trang
+window.addEventListener('beforeunload', () => {
+    clearInterval(countdownInterval);
 });
 
 function updateStartChatButtonState() {
@@ -1601,3 +1651,30 @@ async function banUser(userId) {
         cmdOutput.textContent += `Lỗi khi cấm người dùng ${userId}: ${e.code || e.message}\n`;
     }
 }
+
+// Hàm hiển thị thông báo chặn
+function showBanNotification(userName, userId) {
+    const banModal = document.getElementById('ban-notification-modal');
+    const banMessage = banModal.querySelector('p');
+    
+    banMessage.innerHTML = `
+        Tài khoản <strong>${userName}</strong> (ID: ${userId}) đã bị cấm vĩnh viễn.<br>
+        Toàn bộ dữ liệu của bạn đã bị xóa.
+    `;
+    
+    // Ẩn tất cả giao diện khác
+    startScreen.classList.add('hidden');
+    chatInterface.classList.add('hidden');
+    authModal.style.display = 'none';
+    termsModal.style.display = 'none';
+    
+    // Hiển thị modal chặn (không có nút đóng)
+    banModal.style.display = 'flex';
+    
+    // Vô hiệu hóa tất cả tương tác
+    document.body.style.pointerEvents = 'none';
+    
+    // Buộc refresh sau 10s nếu người dùng không tự refresh
+    setTimeout(() => {
+        location.reload();
+    }, 10000);
