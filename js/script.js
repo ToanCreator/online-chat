@@ -1286,7 +1286,7 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
 
 const cmdCommands = [
     ':pause', ':unpause', ':clear', ':showgroup', ':showpeople',
-    ':allpause', ':unallpause', ':allclear', ':ban', ':refesh'
+    ':allpause', ':unallpause', ':allclear', ':ban', ':refresh'
 ];
 
 function generateCmdKeyboard() {
