@@ -979,9 +979,27 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.add('dark-theme');
         themeSwitch.checked = true;
     }
-    initializeAuth();
-});
+    initializeAuth(); 
+    const refreshSignalRef = doc(db, `artifacts/${appId}/public/data`, 'refreshSignal');
+    onSnapshot(refreshSignalRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const lastRefreshTime = localStorage.getItem('lastRefreshSignalTime');
+            if (!lastRefreshTime || (new Date().getTime() - lastRefreshTime > 5000)) {
+                // 5 second debounce
+                localStorage.setItem('lastRefreshSignalTime', new Date().getTime());
+                console.log("Refresh signal received! Reloading page...");
+                setTimeout(() => {
+                    location.reload();
+                }, 1000); // Reload after 1 second
+            }
+        }
+    }, (error) => {
+        console.error("Error listening for refresh signal:", error);
+    });
 
+}); // Đây là dấu đóng ngoặc của document.addEventListener('DOMContentLoaded')
+    
 // --- Group Management Modals and Functions ---
 
 createJoinGroupBtn.addEventListener('click', () => {
@@ -1263,29 +1281,6 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     }
 });
 
-const refreshSignalRef = doc(db, `artifacts/${appId}/public/data`, 'refreshSignal');
-onSnapshot(refreshSignalRef, (docSnap) => {
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        const lastRefreshTime = localStorage.getItem('lastRefreshSignalTime');
-        if (!lastRefreshTime || (new Date().getTime() - lastRefreshTime > 5000)) {
-            // 5 second debounce
-            localStorage.setItem('lastRefreshSignalTime', new Date().getTime());
-            console.log("Refresh signal received! Reloading page...");
-            setTimeout(() => {
-                location.reload();
-                
-                }, 1000);
-                // Reload after 1 second
-                
-            } 
-            
-        }
-        
-    }, (error) => {
-        console.error("Error listening for refresh signal:", error);
-        
-    }); // KẾT THÚC ĐOẠN CODE CẦN THÊM });
 
 // --- Admin CMD Functions ---
 
