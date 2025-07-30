@@ -18,7 +18,6 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Initialize Firebase
-const appId = firebaseConfig.appId;
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
@@ -980,27 +979,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.add('dark-theme');
         themeSwitch.checked = true;
     }
-    initializeAuth(); 
-    const refreshSignalRef = doc(db, `artifacts/${appId}/public/data`, 'refreshSignal');
-    onSnapshot(refreshSignalRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            const lastRefreshTime = localStorage.getItem('lastRefreshSignalTime');
-            if (!lastRefreshTime || (new Date().getTime() - lastRefreshTime > 5000)) {
-                // 5 second debounce
-                localStorage.setItem('lastRefreshSignalTime', new Date().getTime());
-                console.log("Refresh signal received! Reloading page...");
-                setTimeout(() => {
-                    location.reload();
-                }, 1000); // Reload after 1 second
-            }
-        }
-    }, (error) => {
-        console.error("Error listening for refresh signal:", error);
-    });
+    initializeAuth();
+});
 
-}); // Đây là dấu đóng ngoặc của document.addEventListener('DOMContentLoaded')
-    
+
 // --- Group Management Modals and Functions ---
 
 createJoinGroupBtn.addEventListener('click', () => {
@@ -1287,7 +1269,7 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
 
 const cmdCommands = [
     ':pause', ':unpause', ':clear', ':showgroup', ':showpeople',
-    ':allpause', ':unallpause', ':allclear', ':ban', ':refresh'
+    ':allpause', ':unallpause', ':allclear', ':ban'
 ];
 
 function generateCmdKeyboard() {
@@ -1362,9 +1344,6 @@ async function executeAdminCommand() {
                 break;
             case ':allclear':
                 await clearAllMessages();
-                break;
-            case ':refresh':
-                await sendRefreshSignal();
                 break;
             case ':ban':
                 if (targetId) await banUser(targetId);
@@ -1527,25 +1506,6 @@ async function clearAllMessages() {
         await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
     } catch (e) {
         cmdOutput.textContent += `Lỗi khi xóa tất cả tin nhắn: ${e.code || e.message}\n`;
-    }
-}
-
-// Function to send a refresh signal to all clients
-async function sendRefreshSignal() {
-    try {
-        // Create a dedicated document for refresh signals
-        const refreshSignalRef = doc(db, `artifacts/${appId}/public/data`, 'refreshSignal');
-        await setDoc(refreshSignalRef, {
-            timestamp: serverTimestamp(),
-            triggeredBy: currentUser.id,
-            triggeredByName: currentUser.name
-        });
-        cmdOutput.textContent += "Đã gửi tín hiệu làm mới trang đến tất cả người dùng.\n";
-        showMessageBox("Đã gửi tín hiệu làm mới trang đến tất cả người dùng.");
-    } catch (e) {
-        console.error("Error sending refresh signal:", e);
-        cmdOutput.textContent += `Lỗi khi gửi tín hiệu làm mới: ${e.code || e.message}\n`;
-        showMessageBox(`Lỗi khi gửi tín hiệu làm mới: ${e.code || e.message}.`);
     }
 }
 
