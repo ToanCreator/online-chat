@@ -15,7 +15,7 @@ const firebaseConfig = {
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -106,6 +106,7 @@ let isFirebaseInitialized = false; // True when Firebase app and services are in
 let isUserSessionLoaded = false; // True when user data (currentUser) is loaded from Firestore
 
 const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
+const userColorMap = {}; // Map to store unique colors for user IDs
 
 // --- Utility Functions ---
 
@@ -172,44 +173,78 @@ function generateUniqueId() {
 }
 
 /**
- * Formats a timestamp into a readable date and time string.
- * Handles cases where timestamp might not be a Firestore Timestamp object.
+ * Generates a random hex color.
+ * @returns {string} A hex color string (e.g., "#RRGGBB").
+ */
+function getRandomColor() {
+    const letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
+/**
+ * Gets a unique color for a given user ID.
+ * @param {string} userId - The ID of the user.
+ * @returns {string} A unique hex color for the user.
+ */
+function getUserColor(userId) {
+    if (!userColorMap[userId]) {
+        userColorMap[userId] = getRandomColor();
+    }
+    return userColorMap[userId];
+}
+
+/**
+ * Formats a timestamp into a readable date and time string, including relative times.
  * @param {firebase.firestore.Timestamp|Date|any} timestamp - The timestamp to format.
  * @returns {string} Formatted date and time.
  */
 function formatTimestamp(timestamp) {
     let date;
-    // Check if it's a Firestore Timestamp object
     if (timestamp && typeof timestamp.toDate === 'function') {
         date = timestamp.toDate();
     } else if (timestamp instanceof Date) {
         date = timestamp;
     } else {
-        // Fallback for non-Timestamp or invalid values (e.g., plain object, number, string)
-        // Try to create a Date object from it, or use current date if all else fails.
         try {
             date = new Date(timestamp);
-            if (isNaN(date.getTime())) { // Check for invalid date
-                date = new Date(); // Fallback to current date
+            if (isNaN(date.getTime())) {
+                date = new Date();
             }
         } catch (e) {
             console.warn("Invalid timestamp format, falling back to current date:", timestamp, e);
-            date = new Date(); // Fallback to current date
+            date = new Date();
         }
     }
 
-    const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
-    return date.toLocaleDateString('vi-VN', options);
+    const now = new Date();
+    const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    const diffHours = Math.floor(diffMinutes / 60);
+
+    if (diffSeconds < 60) {
+        return "Vừa xong";
+    } else if (diffMinutes < 60) {
+        return `${diffMinutes} phút trước`;
+    } else if (diffHours < 24) {
+        return `${diffHours} giờ trước`;
+    } else {
+        const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
+        return date.toLocaleDateString('vi-VN', options);
+    }
 }
 
-
 /**
- * Validates full name input (alphanumeric only, max 20 chars).
+ * Validates full name input (allows Vietnamese characters, numbers, spaces, max 20 chars).
  * @param {string} name - The name to validate.
  * @returns {boolean} True if valid, false otherwise.
  */
 function isValidFullName(name) {
-    return /^[a-zA-Z0-9\s]{1,20}$/.test(name);
+    // Allows Vietnamese characters (including diacritics), English letters, numbers, and spaces.
+    return /^[a-zA-Z0-9\sÀÁẠẢÃĂẰẮẶẲẴÂẦẤẬẨẪÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐđ]{1,20}$/.test(name);
 }
 
 /**
@@ -288,6 +323,33 @@ async function handleAuthStateAndUI(user) {
             updateUserProfileUI();
             loadUserGroups();
             loadMessages(activeGroupId);
+
+            // Setup real-time listener for current user's profile to handle pause/unpause
+            onSnapshot(doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data'), (docSnap) => {
+                if (docSnap.exists()) {
+                    const userData = docSnap.data();
+                    currentUser.isPaused = userData.isPaused; // Update local state
+                    if (currentUser.isPaused) {
+                        messageInput.disabled = true;
+                        sendMessageBtn.disabled = true;
+                        messageInput.placeholder = "Bạn đã bị khóa chat bởi Admin.";
+                        createGroupBtn.disabled = true; // Pause new group creation
+                        newGroupNameInput.disabled = true;
+                        newGroupPasswordInput.disabled = true;
+                        showMessageBox("Tài khoản của bạn đã bị tạm khóa chức năng chat bởi Admin.");
+                    } else {
+                        messageInput.disabled = false;
+                        sendMessageBtn.disabled = false;
+                        messageInput.placeholder = "Nhập tin nhắn của bạn (tối đa 1000 từ)";
+                        createGroupBtn.disabled = false; // Enable new group creation
+                        newGroupNameInput.disabled = false;
+                        newGroupPasswordInput.disabled = false;
+                    }
+                }
+            }, (error) => {
+                console.error("Error listening to user profile changes:", error);
+            });
+
         } else {
             // User exists in Firebase auth, but data not loaded (e.g., new user, IP mismatch for non-admin)
             isUserSessionLoaded = false;
@@ -586,6 +648,7 @@ function displayMessage(message) {
 
     let senderInfoHtml = '';
     let messageTextClass = 'message-text';
+    let senderNameStyle = '';
 
     if (message.senderId === currentUserId) {
         messageBubble.classList.add('sent');
@@ -604,8 +667,9 @@ function displayMessage(message) {
         return;
     } else {
         messageBubble.classList.add('received');
+        senderNameStyle = `style="color: ${getUserColor(message.senderId)};"`;
         senderInfoHtml = `
-            <span class="sender-name">${message.senderName}</span>
+            <span class="sender-name" ${senderNameStyle}>${message.senderName}</span>
             <button class="copy-id-btn" data-id="${message.senderId}">Sao chép ID</button>
         `;
     }
@@ -613,7 +677,7 @@ function displayMessage(message) {
     messageBubble.innerHTML = `
         <div class="message-content">
             <div class="sender-info">${senderInfoHtml}</div>
-            <div class="${messageTextClass}">${message.text}</div>
+            <div class="${messageTextClass}" style="color: black;">${message.text}</div>
             <div class="timestamp">${formatTimestamp(message.timestamp)}</div>
         </div>
     `;
@@ -740,7 +804,7 @@ setupBtn.addEventListener('click', () => {
     const recaptchaResponse = grecaptcha.getResponse();
 
     if (!isValidFullName(fullName)) {
-        showMessageBox("Họ và Tên không hợp lệ. Chỉ chấp nhận chữ và số, tối đa 20 ký tự.");
+        showMessageBox("Họ và Tên không hợp lệ. Chỉ chấp nhận chữ, số, và ký tự tiếng Việt có dấu, tối đa 20 ký tự.");
         return;
     }
 
@@ -755,6 +819,11 @@ setupBtn.addEventListener('click', () => {
     toggleModal(termsModal, true);
     // Update button state immediately after showing terms modal
     updateStartChatButtonState();
+
+    // Reset reCAPTCHA after successful setup button click to force re-verification for next attempt
+    if (typeof grecaptcha !== 'undefined') {
+        grecaptcha.reset();
+    }
 });
 
 agreeTermsCheckbox.addEventListener('change', () => {
@@ -910,6 +979,10 @@ createGroupBtn.addEventListener('click', async () => {
         showMessageBox("Vui lòng đăng kí tài khoản trước.");
         return;
     }
+    if (!currentUserIsAdmin && currentUser.isPaused) { // Check for pause status
+        showMessageBox("Tài khoản của bạn đã bị tạm khóa chức năng tạo nhóm bởi Admin.");
+        return;
+    }
 
     const newGroupId = generateUniqueId();
     const groupData = {
@@ -1011,11 +1084,16 @@ groupInfoBtn.addEventListener('click', async () => {
         const groupSnap = await getDoc(groupDocRef);
         if (groupSnap.exists()) {
             activeGroupData = groupSnap.data();
+            infoGroupName.textContent = activeGroupData.name;
+            infoGroupCreator.textContent = activeGroupData.creatorName;
+            infoGroupId.textContent = activeGroupData.id;
+            infoGroupCreationDate.textContent = formatTimestamp(activeGroupData.createdAt);
+            infoMemberCount.textContent = (activeGroupData.members ? activeGroupData.members.length : 0);
+            toggleModal(groupInfoModal, true);
         } else {
             activeGroupData = null;
-            console.warn("Active group data not found for:", groupId);
+            console.warn("Active group data not found for:", activeGroupId);
             showMessageBox("Không tìm thấy thông tin nhóm.");
-            return;
         }
     } catch (error) {
         console.error("Error fetching group info:", error);
@@ -1088,7 +1166,7 @@ deleteGroupBtn.addEventListener('click', () => {
         showMessageBox("Không thể xóa nhóm chính hoặc không có nhóm nào đang hoạt động.");
         return;
     }
-    if (!activeGroupData || activeGroupData.creatorId !== currentUser.id && !currentUserIsAdmin) {
+    if (!activeGroupData || (activeGroupData.creatorId !== currentUser.id && !currentUserIsAdmin)) {
         showMessageBox("Bạn không có quyền xóa nhóm này.");
         return;
     }
@@ -1108,15 +1186,17 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     }
 
     try {
+        const batch = writeBatch(db); // Use writeBatch(db)
+
+        // Delete all messages in the group
         const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${activeGroupId}/messages`);
         const q = query(messagesRef);
         const snapshot = await getDocs(q);
-        const batch = db.batch();
         snapshot.forEach((doc) => {
             batch.delete(doc.ref);
         });
-        await batch.commit();
 
+        // Remove group from all members' profiles
         const members = activeGroupData.members || [];
         for (const memberId of members) {
             const memberProfileRef = doc(db, `artifacts/${appId}/users/${memberId}/profile`, 'data');
@@ -1124,11 +1204,15 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
             if (memberSnap.exists()) {
                 const memberData = memberSnap.data();
                 const updatedGroups = (memberData.groups || []).filter(g => g !== activeGroupId);
-                await updateDoc(memberProfileRef, { groups: updatedGroups });
+                batch.update(memberProfileRef, { groups: updatedGroups });
             }
         }
 
-        await deleteDoc(doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId));
+        // Delete the group document itself
+        const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId);
+        batch.delete(groupDocRef);
+
+        await batch.commit(); // Commit all batched operations
 
         showMessageBox(`Nhóm "${activeGroupData.name}" đã được xóa thành công!`);
         toggleModal(deleteGroupModal, false);
@@ -1245,15 +1329,16 @@ async function toggleUserPause(userId, pause) {
 }
 
 async function clearMessages(targetId) {
-    const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, targetId);
     try {
+        const batch = writeBatch(db); // Use writeBatch(db)
+        const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, targetId);
         const groupSnap = await getDoc(groupRef);
 
         if (groupSnap.exists()) {
+            // Target is a group ID
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${targetId}/messages`);
             const q = query(messagesRef);
             const snapshot = await getDocs(q);
-            const batch = db.batch();
             snapshot.forEach((doc) => {
                 batch.delete(doc.ref);
             });
@@ -1261,20 +1346,20 @@ async function clearMessages(targetId) {
             cmdOutput.textContent += `Đã xóa tất cả tin nhắn trong nhóm ${targetId}.\n`;
             await sendSystemMessage(targetId, `Admin đã xóa tất cả tin nhắn trong nhóm này.`);
         } else {
-            const usersCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
-            const groupsSnapshot = await getDocs(usersCollectionRef);
+            // Target is likely a user ID, clear messages by this user across all groups
+            const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
+            const groupsSnapshot = await getDocs(groupsCollectionRef);
 
             for (const groupDoc of groupsSnapshot.docs) {
                 const groupId = groupDoc.id;
                 const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
                 const q = query(messagesRef, where('senderId', '==', targetId));
                 const snapshot = await getDocs(q);
-                const batch = db.batch();
                 snapshot.forEach((doc) => {
                     batch.delete(doc.ref);
                 });
-                await batch.commit();
             }
+            await batch.commit(); // Commit batch for all user messages
             cmdOutput.textContent += `Đã xóa tất cả tin nhắn của người dùng ${targetId} trên tất cả các nhóm.\n`;
             await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn của người dùng ${targetId}.`);
         }
@@ -1308,7 +1393,7 @@ async function showPeople() {
             const profileSnap = await getDoc(profileDocRef);
             if (profileSnap.exists()) {
                 const data = profileSnap.data();
-                cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Admin: ${data.isAdmin ? 'Có' : 'Không'}, IP: ${data.ipAddress}\n`;
+                cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Admin: ${data.isAdmin ? 'Có' : 'Không'}, IP: ${data.ipAddress}, Tạm khóa: ${data.isPaused ? 'Có' : 'Không'}\n`;
             }
         }
     } catch (e) {
@@ -1318,12 +1403,15 @@ async function showPeople() {
 
 async function toggleAllPause(pause) {
     try {
+        const batch = writeBatch(db); // Use writeBatch(db)
         const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
         const snapshot = await getDocs(usersCollectionRef);
-        const batch = db.batch();
         snapshot.forEach(userDoc => {
             const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
-            batch.update(profileDocRef, { isPaused: pause });
+            // Only pause non-admin users
+            if (!adminEmails.includes(userDoc.data().email)) { // Assuming email is stored in profile data
+                batch.update(profileDocRef, { isPaused: pause });
+            }
         });
         await batch.commit();
         cmdOutput.textContent += `Đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng (trừ admin).\n`;
@@ -1335,6 +1423,7 @@ async function toggleAllPause(pause) {
 
 async function clearAllMessages() {
     try {
+        const batch = writeBatch(db); // Use writeBatch(db)
         const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
         const groupsSnapshot = await getDocs(groupsCollectionRef);
 
@@ -1343,12 +1432,11 @@ async function clearAllMessages() {
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
             const q = query(messagesRef);
             const snapshot = await getDocs(q);
-            const batch = db.batch();
             snapshot.forEach((doc) => {
                 batch.delete(doc.ref);
             });
-            await batch.commit();
         }
+        await batch.commit(); // Commit all batched operations
         cmdOutput.textContent += "Đã xóa tất cả tin nhắn trên tất cả các nhóm.\n";
         await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
     } catch (e) {
@@ -1363,6 +1451,9 @@ async function banUser(userId) {
     }
 
     try {
+        const batch = writeBatch(db); // Use writeBatch(db)
+
+        // 1. Remove user from all groups
         const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
         const groupsSnapshot = await getDocs(groupsCollectionRef);
 
@@ -1370,17 +1461,37 @@ async function banUser(userId) {
             const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupDoc.id);
             const groupData = groupDoc.data();
             const updatedMembers = (groupData.members || []).filter(member => member !== userId);
-            await updateDoc(groupRef, { members: updatedMembers });
+            // Only update if the user was actually a member to avoid unnecessary writes
+            if (updatedMembers.length < (groupData.members || []).length) {
+                batch.update(groupRef, { members: updatedMembers });
+            }
         }
 
-        await clearMessages(userId);
+        // 2. Delete all messages sent by this user across all groups
+        await clearMessages(userId); // This function now uses batch internally
 
+        // 3. Delete the user's profile document
         const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-        await deleteDoc(userProfileRef);
+        batch.delete(userProfileRef);
 
+        await batch.commit(); // Commit all batched operations
+
+        // 4. Force client-side logout for the banned user if they are currently logged in
+        // This is tricky for anonymous users as we don't know their current session.
+        // Forcing a page reload might be the most reliable way to enforce it client-side.
+        // However, we cannot directly force another client to reload.
+        // The onSnapshot listener on user profile will handle the UI disable for chat.
+        // For a full ban effect, the user's local storage/session might need to be cleared,
+        // but that's beyond direct control from another client.
+        // We will rely on the Firestore rules and the isPaused flag.
+
+        showMessageBox(`Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.`);
         cmdOutput.textContent += `Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.\n`;
         await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userId} khỏi hệ thống.`);
+
     } catch (e) {
+        console.error("Error banning user:", e);
+        showMessageBox(`Đã xảy ra lỗi khi cấm người dùng ${userId}: ${e.code || e.message}. Vui lòng thử lại.`);
         cmdOutput.textContent += `Lỗi khi cấm người dùng ${userId}: ${e.code || e.message}\n`;
     }
 }
