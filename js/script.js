@@ -104,8 +104,6 @@ let activeGroupData = null; // Stores data for the currently active group
 let firebaseAuthChecked = false; // True when onAuthStateChanged has run at least once
 let isFirebaseInitialized = false; // True when Firebase app and services are initialized
 let isUserSessionLoaded = false; // True when user data (currentUser) is loaded from Firestore
-// Biến toàn cục cho bộ đếm ngược
-let countdownInterval = null;
 
 const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
 const userColorMap = {}; // Map to store unique colors for user IDs
@@ -300,16 +298,6 @@ async function handleAuthStateAndUI(user) {
     currentUserId = user ? user.uid : null;
     console.log("onAuthStateChanged fired. User:", user ? user.uid : "null");
     console.log("Current currentUserId after onAuthStateChanged:", currentUserId); // Log currentUserId here
-    
-    if (user) {
-        // Kiểm tra nếu người dùng bị cấm
-        const userProfileRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'data');
-        const userSnap = await getDoc(userProfileRef);
-        
-    if (!userSnap.exists()) {
-            showBanNotification("Người dùng", user.uid);
-            return;
-    }
 
     if (!userIpAddress || userIpAddress === 'unknown') {
         await fetchUserIpAddress();
@@ -337,7 +325,7 @@ async function handleAuthStateAndUI(user) {
             loadUserGroups();
             loadMessages(activeGroupId);
 
-            // Setup real-time listener for current user's profile to handle pause/unpause
+            // Setup real-time listener for current user's profile to handle pause/unpause/ban
             onSnapshot(doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data'), (docSnap) => {
                 if (docSnap.exists()) {
                     const userData = docSnap.data();
@@ -346,26 +334,34 @@ async function handleAuthStateAndUI(user) {
                         messageInput.disabled = true;
                         sendMessageBtn.disabled = true;
                         messageInput.placeholder = "Bạn đã bị khóa chat bởi Admin.";
-                        createGroupBtn.disabled = true; // Pause new group creation
+                        createGroupBtn.disabled = true;
                         newGroupNameInput.disabled = true;
                         newGroupPasswordInput.disabled = true;
                         showMessageBox("Tài khoản của bạn đã bị tạm khóa chức năng chat bởi Admin.");
+                        
                     } else {
                         messageInput.disabled = false;
                         sendMessageBtn.disabled = false;
                         messageInput.placeholder = "Nhập tin nhắn của bạn (tối đa 1000 từ)";
-                        createGroupBtn.disabled = false; // Enable new group creation
+                        createGroupBtn.disabled = false;
                         newGroupNameInput.disabled = false;
                         newGroupPasswordInput.disabled = false;
-                    }
-                } else {
-                    // If user profile is deleted (e.g., banned), sign out
-                    signOut(auth);
-                    showMessageBox("Tài khoản của bạn đã bị xóa hoặc cấm.");
-                }
-            }, (error) => {
-                console.error("Error listening to user profile changes:", error);
-            });
+        }
+        
+    } else {
+        // Nếu hồ sơ người dùng bị xóa (lệnh ban đã thực thi)
+        // Hiển thị màn hình chặn toàn trang
+        const banOverlay = document.getElementById('ban-overlay');
+        if (banOverlay) {
+            banOverlay.style.display = 'flex';
+        }
+        // Vô hiệu hóa toàn bộ giao diện chat
+        chatInterface.style.pointerEvents = 'none';
+    }
+}, (error) => {
+    console.error("Error listening to user profile changes:", error);
+    
+});
 
         } else {
             // User exists in Firebase auth, but data not loaded (e.g., new user, IP mismatch for non-admin)
@@ -826,6 +822,9 @@ fullNameInput.addEventListener('input', () => {
     }
 });
 
+// Biến để quản lý bộ đếm ngược
+let countdownInterval;
+
 setupBtn.addEventListener('click', () => {
     const fullName = fullNameInput.value.trim();
     const recaptchaResponse = grecaptcha.getResponse();
@@ -840,78 +839,52 @@ setupBtn.addEventListener('click', () => {
         return;
     }
 
-    console.log("reCAPTCHA response:", recaptchaResponse);
-
     toggleModal(authModal, false);
     toggleModal(termsModal, true);
-    // Update button state immediately after showing terms modal
-    updateStartChatButtonState();
 
-    // Reset reCAPTCHA after successful setup button click to force re-verification for next attempt
+    // Reset reCAPTCHA sau khi qua bước này
     if (typeof grecaptcha !== 'undefined') {
         grecaptcha.reset();
     }
 });
 
-agreeTermsCheckbox.addEventListener('change', () => {
-    updateStartChatButtonState();
-});
+agreeTermsCheckbox.addEventListener('change', function() {
+    // Hủy bộ đếm ngược cũ nếu có
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
 
-
-
-// Hàm bắt đầu đếm ngược
-function startCountdown() {
-    const countdownElement = document.getElementById('countdown-timer');
-    const startChatBtn = document.getElementById('start-chat-btn');
-    let timeLeft = 60;
-    
-    countdownElement.textContent = `Vui lòng đợi ${timeLeft} giây...`;
-    startChatBtn.disabled = true;
-    startChatBtn.classList.add('disabled');
-    
-    clearInterval(countdownInterval);
-    countdownInterval = setInterval(() => {
-        timeLeft--;
-        countdownElement.textContent = `Vui lòng đợi ${timeLeft} giây...`;
-        
-        if (timeLeft <= 0) {
-            clearInterval(countdownInterval);
-            countdownElement.textContent = "Bây giờ bạn có thể bắt đầu!";
-            startChatBtn.disabled = false;
-            startChatBtn.classList.remove('disabled');
-        }
-    }, 1000);
-}
-
-// Gọi hàm startCountdown khi hiển thị modal điều khoản
-setupBtn.addEventListener('click', () => {
-    // ... code hiện tại ...
-    toggleModal(termsModal, true);
-    startCountdown(); // Bắt đầu đếm ngược
-});
-
-// Xử lý khi rời khỏi trang
-window.addEventListener('beforeunload', () => {
-    clearInterval(countdownInterval);
-});
-
-function updateStartChatButtonState() {
-    // Log the values that determine the button state
-    console.log("Updating Start Chat button state:");
-    console.log("  agreeTermsCheckbox.checked:", agreeTermsCheckbox.checked);
-    console.log("  firebaseAuthChecked:", firebaseAuthChecked);
-    console.log("  currentUserId:", currentUserId);
-
-    if (agreeTermsCheckbox.checked && firebaseAuthChecked && currentUserId) {
-        startChatBtn.disabled = false;
-        startChatBtn.classList.remove('disabled');
-        console.log("Start Chat button enabled.");
-    } else {
+    if (this.checked && firebaseAuthChecked && currentUserId) {
+        // Khi người dùng đồng ý, bắt đầu đếm ngược
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
-        console.log("Start Chat button disabled.");
+        let seconds = 60;
+        const countdownSpan = document.getElementById('countdown');
+
+        // Cập nhật giao diện nút ngay lập tức
+        startChatBtn.innerHTML = `Bắt đầu (<span id="countdown">${seconds}</span>s)`;
+
+        countdownInterval = setInterval(() => {
+            seconds--;
+            if(countdownSpan) countdownSpan.textContent = seconds;
+
+            if (seconds <= 0) {
+                clearInterval(countdownInterval);
+                startChatBtn.disabled = false;
+                startChatBtn.classList.remove('disabled');
+                startChatBtn.textContent = 'Bắt đầu'; // Bỏ bộ đếm
+            }
+        }, 1000);
+    } else {
+        // Nếu bỏ tick hoặc chưa xác thực, vô hiệu hóa nút ngay lập tức
+        startChatBtn.disabled = true;
+        startChatBtn.classList.add('disabled');
+        startChatBtn.innerHTML = `Bắt đầu (<span id="countdown">60</span>s)`;
     }
-}
+});
+
+// Hàm này không còn cần thiết vì logic đã được chuyển vào event listener của checkbox
+// function updateStartChatButtonState() { ... }
 
 
 startChatBtn.addEventListener('click', async () => {
@@ -1651,30 +1624,3 @@ async function banUser(userId) {
         cmdOutput.textContent += `Lỗi khi cấm người dùng ${userId}: ${e.code || e.message}\n`;
     }
 }
-
-// Hàm hiển thị thông báo chặn
-function showBanNotification(userName, userId) {
-    const banModal = document.getElementById('ban-notification-modal');
-    const banMessage = banModal.querySelector('p');
-    
-    banMessage.innerHTML = `
-        Tài khoản <strong>${userName}</strong> (ID: ${userId}) đã bị cấm vĩnh viễn.<br>
-        Toàn bộ dữ liệu của bạn đã bị xóa.
-    `;
-    
-    // Ẩn tất cả giao diện khác
-    startScreen.classList.add('hidden');
-    chatInterface.classList.add('hidden');
-    authModal.style.display = 'none';
-    termsModal.style.display = 'none';
-    
-    // Hiển thị modal chặn (không có nút đóng)
-    banModal.style.display = 'flex';
-    
-    // Vô hiệu hóa tất cả tương tác
-    document.body.style.pointerEvents = 'none';
-    
-    // Buộc refresh sau 10s nếu người dùng không tự refresh
-    setTimeout(() => {
-        location.reload();
-    }, 10000);
