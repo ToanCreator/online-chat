@@ -419,6 +419,7 @@ async function loadUserData(uid, ip) {
  * Registers a new user and saves their data to Firestore.
  * @param {string} name - The user's chosen name.
  */
+
 async function registerUser(name) {
     if (!currentUserId) {
         showMessageBox("Lỗi đăng kí: Không tìm thấy ID người dùng. Vui lòng thử lại sau ít phút hoặc tải lại trang.");
@@ -471,10 +472,14 @@ async function registerUser(name) {
                 console.log("User added to default group members.");
             }
         } else {
+            // SỬA LỖI: Xác định creatorId và creatorName dựa trên người dùng hiện tại
+            const actualCreatorId = currentUserId; // Người tạo thực sự là người dùng hiện tại
+            const actualCreatorName = name; // Tên người tạo là tên của người dùng hiện tại
+
             await setDoc(defaultGroupRef, {
                 name: 'Dô la - ToanCreator',
-                creatorId: 'admin',
-                creatorName: 'Toàn Creator ✅',
+                creatorId: actualCreatorId, // Sử dụng ID của người dùng đang tạo
+                creatorName: actualCreatorName, // Sử dụng tên của người dùng đang tạo
                 id: 'default-group',
                 createdAt: serverTimestamp(),
                 members: [currentUserId],
