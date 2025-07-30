@@ -105,7 +105,7 @@ let firebaseAuthChecked = false; // True when onAuthStateChanged has run at leas
 let isFirebaseInitialized = false; // True when Firebase app and services are initialized
 let isUserSessionLoaded = false; // True when user data (currentUser) is loaded from Firestore
 
-const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
+const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com', 'emailracvl5@gmail.com'];
 const userColorMap = {}; // Map to store unique colors for user IDs
 
 // --- Utility Functions ---
@@ -858,7 +858,7 @@ agreeTermsCheckbox.addEventListener('change', function() {
         // Khi người dùng đồng ý, bắt đầu đếm ngược
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
-        let seconds = 45;
+        let seconds = 15;
         const countdownSpan = document.getElementById('countdown');
 
         // Cập nhật giao diện nút ngay lập tức
@@ -879,7 +879,7 @@ agreeTermsCheckbox.addEventListener('change', function() {
         // Nếu bỏ tick hoặc chưa xác thực, vô hiệu hóa nút ngay lập tức
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
-        startChatBtn.innerHTML = `Bắt đầu sau <span id="countdown">45</span>s`;
+        startChatBtn.innerHTML = `Bắt đầu sau <span id="countdown">15</span>s`;
     }
 });
 
