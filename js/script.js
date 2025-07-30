@@ -6,7 +6,7 @@ const firebaseConfig = {
     apiKey: "AIzaSyD4ja8kpnQNeWhfpgcKsbC9UNOyVC_ibyo",
     authDomain: "toancreator-online-chat.firebaseapp.com",
     projectId: "toancreator-online-chat",
-    storageBucket: "toancreator-online-chat.firebasestorage.app",
+    storageBucket: "toancreator-online-chat.firebaseapp.com",
     messagingSenderId: "683126416659",
     appId: "1:683126416659:web:2fe64da2f203dac119e6e6",
     measurementId: "G-4ZYYCLPSF5"
@@ -110,6 +110,7 @@ const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com']
 const userColorMap = {}; // Map to store unique colors for user IDs
 
 let termsCountdownTimer = null; // Timer for the terms modal countdown
+let termsCountdownFinished = false; // New flag for countdown status
 
 // --- Utility Functions ---
 
@@ -123,10 +124,14 @@ function showMessageBox(message, dismissible = true) {
     messageBox.style.display = 'flex';
     if (dismissible) {
         messageBoxOkBtn.classList.remove('hidden');
+        messageBox.classList.remove('non-dismissible'); // Ensure it's dismissible
         messageBoxOkBtn.addEventListener('click', hideMessageBox, { once: true });
+        // Add listener for outside click only for dismissible messageBox
+        messageBox.addEventListener('click', dismissModalOutside);
     } else {
         messageBoxOkBtn.classList.add('hidden');
-        // Prevent dismissal by clicking outside for non-dismissible messages
+        messageBox.classList.add('non-dismissible'); // Mark as non-dismissible
+        // Remove listener for outside click if it was there
         messageBox.removeEventListener('click', dismissModalOutside);
     }
 }
@@ -136,9 +141,11 @@ function showMessageBox(message, dismissible = true) {
  */
 function hideMessageBox() {
     messageBox.style.display = 'none';
-    messageBoxOkBtn.classList.remove('hidden'); // Ensure it's visible for next dismissible message
-    messageBox.removeEventListener('click', dismissModalOutside); // Remove the event listener to prevent multiple bindings
-    messageBoxOkBtn.removeEventListener('click', hideMessageBox); // Remove specific listener for this button
+    messageBoxOkBtn.classList.remove('hidden');
+    messageBox.classList.remove('non-dismissible'); // Reset for next time
+    messageBoxOkBtn.removeEventListener('click', hideMessageBox);
+    // Ensure listener for outside click is removed when hiding the message box
+    messageBox.removeEventListener('click', dismissModalOutside);
 }
 
 
@@ -156,14 +163,12 @@ closeButtons.forEach(button => {
  * Function to handle clicking outside a modal to close it.
  * @param {Event} event - The click event.
  */
-function dismissModalOutside(event) {
-    if (event.target.classList.contains('modal') && !event.target.classList.contains('non-dismissible')) {
+window.addEventListener('click', (event) => {
+    // Only dismiss if the clicked element is a modal background AND it's not the messageBox
+    if (event.target.classList.contains('modal') && event.target !== messageBox) {
         toggleModal(event.target, false);
     }
-}
-
-// Close modal when clicking outside content
-window.addEventListener('click', dismissModalOutside);
+});
 
 
 /**
@@ -181,6 +186,8 @@ function toggleModal(modalElement, show) {
         if (modalElement.id === 'terms-modal' && termsCountdownTimer) {
             clearInterval(termsCountdownTimer);
             termsCountdownDisplay.textContent = '';
+            termsCountdownFinished = false; // Reset the flag
+            updateStartChatButtonState(); // Update button state
         }
     }
 }
@@ -373,15 +380,20 @@ async function handleAuthStateAndUI(user) {
                     }
                 } else {
                     // If user profile is deleted (e.g., banned), sign out and show ban message
-                    signOut(auth);
+                    console.log("User profile document does not exist. Initiating sign out and ban message.");
+                    signOut(auth); // Explicitly sign out
                     showMessageBox("Tài khoản của bạn đã bị xóa hoặc cấm. Vui lòng tải lại trang.", false); // Non-dismissible
                     startScreen.classList.add('hidden'); // Ensure no other UI elements interfere
                     chatInterface.classList.add('hidden'); // Hide chat interface
                     toggleModal(authModal, false);
                     toggleModal(termsModal, false);
+                    // Prevent any further interaction by returning
+                    return;
                 }
             }, (error) => {
                 console.error("Error listening to user profile changes:", error);
+                // Handle cases where listener itself fails (e.g., permissions)
+                showMessageBox(`Lỗi theo dõi tài khoản: ${error.code || error.message}. Vui lòng tải lại trang.`, false);
             });
 
         } else {
@@ -883,12 +895,15 @@ function startTermsCountdown() {
     termsCountdownDisplay.textContent = `Vui lòng đợi ${timeLeft} giây...`;
     startChatBtn.disabled = true;
     startChatBtn.classList.add('disabled');
+    termsCountdownFinished = false; // Reset the flag
 
+    if (termsCountdownTimer) clearInterval(termsCountdownTimer); // Clear any existing timer
     termsCountdownTimer = setInterval(() => {
         timeLeft--;
         if (timeLeft <= 0) {
             clearInterval(termsCountdownTimer);
             termsCountdownDisplay.textContent = 'Bạn có thể bắt đầu chat!';
+            termsCountdownFinished = true; // Set the flag
             updateStartChatButtonState(); // Re-check state after countdown
         } else {
             termsCountdownDisplay.textContent = `Vui lòng đợi ${timeLeft} giây...`;
@@ -902,23 +917,21 @@ agreeTermsCheckbox.addEventListener('change', () => {
 
 function updateStartChatButtonState() {
     // Log the values that determine the button state
-    console.log("Updating Start Chat button state:");
+    console.log("Updating Start Chat button state - Debugging:");
     console.log("  agreeTermsCheckbox.checked:", agreeTermsCheckbox.checked);
     console.log("  firebaseAuthChecked:", firebaseAuthChecked);
     console.log("  currentUserId:", currentUserId);
-    console.log("  termsCountdownDisplay.textContent:", termsCountdownDisplay.textContent);
+    console.log("  termsCountdownFinished:", termsCountdownFinished); // Use the new flag
 
 
-    const isCountdownFinished = termsCountdownDisplay.textContent === 'Bạn có thể bắt đầu chat!';
-
-    if (agreeTermsCheckbox.checked && firebaseAuthChecked && currentUserId && isCountdownFinished) {
+    if (agreeTermsCheckbox.checked && firebaseAuthChecked && currentUserId && termsCountdownFinished) {
         startChatBtn.disabled = false;
         startChatBtn.classList.remove('disabled');
-        console.log("Start Chat button enabled.");
+        console.log("Start Chat button ENABLED.");
     } else {
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
-        console.log("Start Chat button disabled.");
+        console.log("Start Chat button DISABLED.");
     }
 }
 
@@ -1661,12 +1674,11 @@ async function banUser(userId) {
                 await sendSystemMessage(groupId, `Admin đã cấm và xóa người dùng ${userData.name} (ID: ${userId}) khỏi hệ thống.`);
             }
         }
-        showMessageBox(`Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống. Vui lòng tải lại trang.`, false); // Non-dismissible
+        // This message box is for the admin who executed the command
+        showMessageBox(`Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.`, true); // Now dismissible for admin
         cmdOutput.textContent += `Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.\n`;
 
-        // Force sign out the banned user if they are currently logged in (this is handled by onAuthStateChanged listener now)
-        // If currentUserId matches userId being banned, this will trigger the onAuthStateChanged with null user.
-        // signOut(auth) if (auth.currentUser && auth.currentUser.uid === userId); // No need to explicitly call here, listener handles it.
+        // The banned user's client will handle showing the non-dismissible message via the onSnapshot listener on their profile doc.
 
     } catch (e) {
         console.error("Error banning user:", e);
