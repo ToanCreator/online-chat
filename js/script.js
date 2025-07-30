@@ -1372,7 +1372,7 @@ async function clearMessages(targetId) {
         } else {
             // Target is likely a user ID, clear messages by this user across all groups
             const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
-            const groupsSnapshot = await getDocs(groupsCollectionRef);
+            const groupsSnapshot = await await getDocs(groupsCollectionRef); // Ensure await here
 
             for (const groupDoc of groupsSnapshot.docs) {
                 const groupId = groupDoc.id;
@@ -1412,6 +1412,10 @@ async function showPeople() {
         const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
         const snapshot = await getDocs(usersCollectionRef); // This will get the user ID documents
         cmdOutput.textContent += "Danh sách các tài khoản:\n";
+        if (snapshot.empty) {
+            cmdOutput.textContent += "Không tìm thấy người dùng nào trong hệ thống.\n";
+            return;
+        }
         for (const userDoc of snapshot.docs) {
             const userId = userDoc.id;
             const profileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
@@ -1419,6 +1423,8 @@ async function showPeople() {
             if (profileSnap.exists()) {
                 const data = profileSnap.data();
                 cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Admin: ${data.isAdmin ? 'Có' : 'Không'}, IP: ${data.ipAddress}, Tạm khóa: ${data.isPaused ? 'Có' : 'Không'}\n`;
+            } else {
+                cmdOutput.textContent += `- Cảnh báo: Hồ sơ người dùng ID: ${userId} không tìm thấy (profile/data).\n`;
             }
         }
     } catch (e) {
@@ -1431,6 +1437,11 @@ async function toggleAllPause(pause) {
         const batch = writeBatch(db);
         const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
         const snapshot = await getDocs(usersCollectionRef);
+
+        if (snapshot.empty) {
+            cmdOutput.textContent += "Không tìm thấy người dùng nào để tạm dừng/bỏ tạm dừng.\n";
+            return;
+        }
 
         for (const userDoc of snapshot.docs) {
             const userId = userDoc.id;
@@ -1482,25 +1493,46 @@ async function banUser(userId) {
     }
 
     try {
+        const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+        const userSnap = await getDoc(userProfileRef);
+        if (!userSnap.exists()) {
+            cmdOutput.textContent += `Lỗi: Người dùng với ID ${userId} không tồn tại.\n`;
+            return;
+        }
+        const userData = userSnap.data();
+
+        // 1. Mark user as paused immediately (this should disable chat/group creation via listener)
+        // This is done implicitly by deleting the profile which triggers signOut(auth)
+        // If you wanted to only pause without deleting, you'd do:
+        // await updateDoc(userProfileRef, { isPaused: true });
+        // showMessageBox(`Người dùng ${userId} đã bị tạm khóa chat.`);
+        // cmdOutput.textContent += `Người dùng ${userId} đã bị tạm khóa chat và tạo nhóm.\n`;
+
+
         const batch = writeBatch(db);
 
-        // 1. Delete groups created by this user (except default-group)
+        // 2. Delete groups created by this user (except default-group)
         const groupsCreatedByUserQuery = query(
             collection(db, `artifacts/${appId}/public/data/groups`),
             where('creatorId', '==', userId)
         );
         const createdGroupsSnapshot = await getDocs(groupsCreatedByUserQuery);
 
+        if (!createdGroupsSnapshot.empty) {
+            cmdOutput.textContent += `Đang xóa các nhóm do người dùng ${userId} tạo...\n`;
+        }
+
         for (const groupDoc of createdGroupsSnapshot.docs) {
             if (groupDoc.id !== 'default-group') {
                 const groupIdToDelete = groupDoc.id;
+                const groupData = groupDoc.data();
+                
                 // Delete all messages in this group
                 const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupIdToDelete}/messages`);
                 const messagesSnapshot = await getDocs(query(messagesRef));
                 messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
 
                 // Remove this group from all its members' profiles
-                const groupData = groupDoc.data();
                 const membersInGroup = groupData.members || [];
                 for (const memberId of membersInGroup) {
                     const memberProfileRef = doc(db, `artifacts/${appId}/users/${memberId}/profile`, 'data');
@@ -1517,7 +1549,8 @@ async function banUser(userId) {
             }
         }
 
-        // 2. Remove user from all other groups they are a member of
+        // 3. Remove user from all other groups they are a member of
+        cmdOutput.textContent += `Đang xóa người dùng ${userId} khỏi các nhóm khác...\n`;
         const allGroupsRef = collection(db, `artifacts/${appId}/public/data/groups`);
         const allGroupsSnapshot = await getDocs(allGroupsRef);
 
@@ -1525,12 +1558,15 @@ async function banUser(userId) {
             const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupDoc.id);
             const groupData = groupDoc.data();
             const updatedMembers = (groupData.members || []).filter(member => member !== userId);
+            // Only update if the user was actually a member and is being removed
             if (updatedMembers.length < (groupData.members || []).length) {
                 batch.update(groupRef, { members: updatedMembers });
+                cmdOutput.textContent += `- Đã xóa ${userId} khỏi nhóm "${groupData.name}" (ID: ${groupDoc.id}).\n`;
             }
         }
 
-        // 3. Delete all messages sent by this user across all groups
+        // 4. Delete all messages sent by this user across all groups
+        cmdOutput.textContent += `Đang xóa tin nhắn của người dùng ${userId}...\n`;
         const messagesToDelete = [];
         for (const groupDoc of allGroupsSnapshot.docs) { // Re-iterate all groups for messages
             const groupId = groupDoc.id;
@@ -1542,17 +1578,22 @@ async function banUser(userId) {
             });
         }
         messagesToDelete.forEach(msgRef => batch.delete(msgRef));
+        if (messagesToDelete.length > 0) {
+            cmdOutput.textContent += `- Đã xóa ${messagesToDelete.length} tin nhắn của người dùng ${userId}.\n`;
+        } else {
+            cmdOutput.textContent += `- Không tìm thấy tin nhắn nào của người dùng ${userId} để xóa.\n`;
+        }
 
 
-        // 4. Delete the user's profile document
-        const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+        // 5. Delete the user's profile document
+        cmdOutput.textContent += `Đang xóa hồ sơ người dùng ${userId}...\n`;
         batch.delete(userProfileRef);
 
         await batch.commit();
 
-        showMessageBox(`Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.`);
-        cmdOutput.textContent += `Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.\n`;
-        await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userId} khỏi hệ thống.`);
+        showMessageBox(`Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.`);
+        cmdOutput.textContent += `Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.\n`;
+        await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userData.name} (ID: ${userId}) khỏi hệ thống.`);
 
     } catch (e) {
         console.error("Error banning user:", e);
