@@ -830,7 +830,7 @@ setupBtn.addEventListener('click', () => {
     const recaptchaResponse = grecaptcha.getResponse();
 
     if (!isValidFullName(fullName)) {
-        showMessageBox("Họ và Tên không hợp lệ. Chỉ chấp nhận chữ, số, và ký tự tiếng Việt có dấu, tối đa 20 ký tự.");
+        showMessageBox("Họ và Tên không hợp lệ. Chỉ chấp nhận chữ, số, và ký tự ko dấu, tối đa 20 ký tự.");
         return;
     }
 
@@ -858,11 +858,11 @@ agreeTermsCheckbox.addEventListener('change', function() {
         // Khi người dùng đồng ý, bắt đầu đếm ngược
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
-        let seconds = 60;
+        let seconds = 45;
         const countdownSpan = document.getElementById('countdown');
 
         // Cập nhật giao diện nút ngay lập tức
-        startChatBtn.innerHTML = `Bắt đầu (<span id="countdown">${seconds}</span>s)`;
+        startChatBtn.innerHTML = `Bắt đầu sau <span id="countdown">${seconds}</span>s`;
 
         countdownInterval = setInterval(() => {
             seconds--;
@@ -879,7 +879,7 @@ agreeTermsCheckbox.addEventListener('change', function() {
         // Nếu bỏ tick hoặc chưa xác thực, vô hiệu hóa nút ngay lập tức
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
-        startChatBtn.innerHTML = `Bắt đầu (<span id="countdown">60</span>s)`;
+        startChatBtn.innerHTML = `Bắt đầu sau <span id="countdown">45</span>s`;
     }
 });
 
