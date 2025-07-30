@@ -1270,6 +1270,10 @@ cmdBtn.addEventListener('click', () => {
     toggleModal(adminCmdModal, true);
     cmdOutput.textContent = "Chào mừng đến với Admin CMD. Nhập lệnh để thực thi.";
     generateCmdKeyboard();
+    // Apply scrolling style for cmdOutput
+    cmdOutput.style.maxHeight = '300px'; // Set a max-height
+    cmdOutput.style.overflowY = 'auto';  // Enable vertical scrolling
+    cmdOutput.style.whiteSpace = 'pre-wrap'; // Preserve whitespace and wrap text
 });
 
 executeCmdBtn.addEventListener('click', executeAdminCommand);
@@ -1335,6 +1339,11 @@ async function executeAdminCommand() {
 async function toggleUserPause(userId, pause) {
     const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
     try {
+        const userSnap = await getDoc(userProfileRef);
+        if (!userSnap.exists()) {
+            cmdOutput.textContent += `Lỗi: Người dùng với ID ${userId} không tồn tại.\n`;
+            return;
+        }
         await updateDoc(userProfileRef, { isPaused: pause });
         cmdOutput.textContent += `Người dùng ${userId} đã ${pause ? 'bị khóa' : 'được mở khóa'} chat.\n`;
         await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat của người dùng ${userId}.`);
@@ -1391,7 +1400,7 @@ async function showGroups() {
         cmdOutput.textContent += "Danh sách các nhóm:\n";
         snapshot.forEach(doc => {
             const data = doc.data();
-            cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Mật khẩu: ${data.password || 'Không có'}\n`;
+            cmdOutput.textContent += `- Tên: ${data.name}, ID: ${data.id}, Mật khẩu: ${data.password || 'Không có'}, Người tạo: ${data.creatorName || 'Không rõ'}\n`;
         });
     } catch (e) {
         cmdOutput.textContent += `Lỗi khi hiển thị nhóm: ${e.code || e.message}\n`;
@@ -1401,10 +1410,11 @@ async function showGroups() {
 async function showPeople() {
     try {
         const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
-        const snapshot = await getDocs(usersCollectionRef);
+        const snapshot = await getDocs(usersCollectionRef); // This will get the user ID documents
         cmdOutput.textContent += "Danh sách các tài khoản:\n";
         for (const userDoc of snapshot.docs) {
-            const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
+            const userId = userDoc.id;
+            const profileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
             const profileSnap = await getDoc(profileDocRef);
             if (profileSnap.exists()) {
                 const data = profileSnap.data();
@@ -1418,21 +1428,22 @@ async function showPeople() {
 
 async function toggleAllPause(pause) {
     try {
-        const batch = writeBatch(db); // Use writeBatch(db)
+        const batch = writeBatch(db);
         const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
         const snapshot = await getDocs(usersCollectionRef);
-        snapshot.forEach(userDoc => {
-            const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
-            // Only pause non-admin users
-            // Assuming email is stored in profile data, if not, you might need to fetch it from auth.
-            // For anonymous users, email is not available, so this check will need to be adjusted
-            // if you want to exclude them from allpause based on something other than email.
-            // For now, it will pause all users whose email is not in adminEmails.
-            const userData = userDoc.data();
-            if (!adminEmails.includes(userData.email)) { // Check if user is NOT an admin
-                batch.update(profileDocRef, { isPaused: pause });
+
+        for (const userDoc of snapshot.docs) {
+            const userId = userDoc.id;
+            const profileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+            const profileSnap = await getDoc(profileDocRef); // Get the actual profile data
+            if (profileSnap.exists()) {
+                const userData = profileSnap.data();
+                // Only pause non-admin users
+                if (!userData.isAdmin) {
+                    batch.update(profileDocRef, { isPaused: pause });
+                }
             }
-        });
+        }
         await batch.commit();
         cmdOutput.textContent += `Đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng (trừ admin).\n`;
         await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng.`);
@@ -1471,26 +1482,57 @@ async function banUser(userId) {
     }
 
     try {
-        const batch = writeBatch(db); // Use writeBatch(db)
+        const batch = writeBatch(db);
 
-        // 1. Remove user from all groups
-        const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
-        const groupsSnapshot = await getDocs(groupsCollectionRef);
+        // 1. Delete groups created by this user (except default-group)
+        const groupsCreatedByUserQuery = query(
+            collection(db, `artifacts/${appId}/public/data/groups`),
+            where('creatorId', '==', userId)
+        );
+        const createdGroupsSnapshot = await getDocs(groupsCreatedByUserQuery);
 
-        for (const groupDoc of groupsSnapshot.docs) {
+        for (const groupDoc of createdGroupsSnapshot.docs) {
+            if (groupDoc.id !== 'default-group') {
+                const groupIdToDelete = groupDoc.id;
+                // Delete all messages in this group
+                const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupIdToDelete}/messages`);
+                const messagesSnapshot = await getDocs(query(messagesRef));
+                messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
+
+                // Remove this group from all its members' profiles
+                const groupData = groupDoc.data();
+                const membersInGroup = groupData.members || [];
+                for (const memberId of membersInGroup) {
+                    const memberProfileRef = doc(db, `artifacts/${appId}/users/${memberId}/profile`, 'data');
+                    const memberSnap = await getDoc(memberProfileRef);
+                    if (memberSnap.exists()) {
+                        const memberData = memberSnap.data();
+                        const updatedGroups = (memberData.groups || []).filter(g => g !== groupIdToDelete);
+                        batch.update(memberProfileRef, { groups: updatedGroups });
+                    }
+                }
+                // Delete the group document itself
+                batch.delete(doc(db, `artifacts/${appId}/public/data/groups`, groupIdToDelete));
+                cmdOutput.textContent += `- Đã xóa nhóm "${groupData.name}" (ID: ${groupIdToDelete}) được tạo bởi ${userId}.\n`;
+            }
+        }
+
+        // 2. Remove user from all other groups they are a member of
+        const allGroupsRef = collection(db, `artifacts/${appId}/public/data/groups`);
+        const allGroupsSnapshot = await getDocs(allGroupsRef);
+
+        for (const groupDoc of allGroupsSnapshot.docs) {
             const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupDoc.id);
             const groupData = groupDoc.data();
             const updatedMembers = (groupData.members || []).filter(member => member !== userId);
-            // Only update if the user was actually a member to avoid unnecessary writes
             if (updatedMembers.length < (groupData.members || []).length) {
                 batch.update(groupRef, { members: updatedMembers });
             }
         }
 
-        // 2. Delete all messages sent by this user across all groups
-        // This part needs to be batched separately as it's a collection group query or multiple collection queries
+        // 3. Delete all messages sent by this user across all groups
         const messagesToDelete = [];
-        for (const groupDoc of groupsSnapshot.docs) {
+        for (const groupDoc of allGroupsSnapshot.docs) { // Re-iterate all groups for messages
             const groupId = groupDoc.id;
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
             const q = query(messagesRef, where('senderId', '==', userId));
@@ -1499,19 +1541,15 @@ async function banUser(userId) {
                 messagesToDelete.push(msgDoc.ref);
             });
         }
-        // Commit messages deletion in a separate batch if too many, or add to current batch
-        // For simplicity, adding to the current batch. If > 500 operations, need multiple batches.
         messagesToDelete.forEach(msgRef => batch.delete(msgRef));
 
 
-        // 3. Delete the user's profile document
+        // 4. Delete the user's profile document
         const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
         batch.delete(userProfileRef);
 
-        await batch.commit(); // Commit all batched operations
+        await batch.commit();
 
-        // Force client-side logout for the banned user if they are currently logged in
-        // This is done by the onAuthStateChanged listener detecting profile deletion.
         showMessageBox(`Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.`);
         cmdOutput.textContent += `Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.\n`;
         await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userId} khỏi hệ thống.`);
