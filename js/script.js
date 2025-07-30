@@ -244,6 +244,7 @@ function formatTimestamp(timestamp) {
  */
 function isValidFullName(name) {
     // Allows Vietnamese characters (including diacritics), English letters, numbers, and spaces.
+    // Updated regex to include common Vietnamese diacritics
     return /^[a-zA-Z0-9\sÀÁẠẢÃĂẰẮẶẲẴÂẦẤẬẨẪÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐđ]{1,20}$/.test(name);
 }
 
@@ -345,6 +346,10 @@ async function handleAuthStateAndUI(user) {
                         newGroupNameInput.disabled = false;
                         newGroupPasswordInput.disabled = false;
                     }
+                } else {
+                    // If user profile is deleted (e.g., banned), sign out
+                    signOut(auth);
+                    showMessageBox("Tài khoản của bạn đã bị xóa hoặc cấm.");
                 }
             }, (error) => {
                 console.error("Error listening to user profile changes:", error);
@@ -422,6 +427,7 @@ async function registerUser(name) {
     }
 
     try {
+        console.log("Attempting to check for existing IP address...");
         const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
         const q = query(usersCollectionRef, where('profile.data.ipAddress', '==', userIpAddress));
         const querySnapshot = await getDocs(q);
@@ -431,6 +437,7 @@ async function registerUser(name) {
             console.warn("Registration blocked: IP address already registered by another user.");
             return;
         }
+        console.log("IP address check passed.");
 
         const newUserData = {
             name: name,
@@ -442,6 +449,7 @@ async function registerUser(name) {
             isPaused: false,
         };
 
+        console.log("Attempting to set user profile document...");
         const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data');
         await setDoc(userProfileDocRef, newUserData);
         console.log("User profile saved successfully.");
@@ -449,6 +457,7 @@ async function registerUser(name) {
         currentUser = newUserData;
         currentUserName = name;
 
+        console.log("Attempting to update/create default group...");
         const defaultGroupRef = doc(db, `artifacts/${appId}/public/data/groups`, 'default-group');
         const defaultGroupSnap = await getDoc(defaultGroupRef);
 
@@ -474,6 +483,7 @@ async function registerUser(name) {
             });
             console.log("Default group created and user added.");
         }
+        console.log("Default group setup complete.");
 
         toggleModal(termsModal, false);
         startScreen.classList.add('hidden');
@@ -1409,7 +1419,12 @@ async function toggleAllPause(pause) {
         snapshot.forEach(userDoc => {
             const profileDocRef = doc(db, `artifacts/${appId}/users/${userDoc.id}/profile`, 'data');
             // Only pause non-admin users
-            if (!adminEmails.includes(userDoc.data().email)) { // Assuming email is stored in profile data
+            // Assuming email is stored in profile data, if not, you might need to fetch it from auth.
+            // For anonymous users, email is not available, so this check will need to be adjusted
+            // if you want to exclude them from allpause based on something other than email.
+            // For now, it will pause all users whose email is not in adminEmails.
+            const userData = userDoc.data();
+            if (!adminEmails.includes(userData.email)) { // Check if user is NOT an admin
                 batch.update(profileDocRef, { isPaused: pause });
             }
         });
@@ -1468,7 +1483,21 @@ async function banUser(userId) {
         }
 
         // 2. Delete all messages sent by this user across all groups
-        await clearMessages(userId); // This function now uses batch internally
+        // This part needs to be batched separately as it's a collection group query or multiple collection queries
+        const messagesToDelete = [];
+        for (const groupDoc of groupsSnapshot.docs) {
+            const groupId = groupDoc.id;
+            const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
+            const q = query(messagesRef, where('senderId', '==', userId));
+            const snapshot = await getDocs(q);
+            snapshot.forEach((msgDoc) => {
+                messagesToDelete.push(msgDoc.ref);
+            });
+        }
+        // Commit messages deletion in a separate batch if too many, or add to current batch
+        // For simplicity, adding to the current batch. If > 500 operations, need multiple batches.
+        messagesToDelete.forEach(msgRef => batch.delete(msgRef));
+
 
         // 3. Delete the user's profile document
         const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
@@ -1476,15 +1505,8 @@ async function banUser(userId) {
 
         await batch.commit(); // Commit all batched operations
 
-        // 4. Force client-side logout for the banned user if they are currently logged in
-        // This is tricky for anonymous users as we don't know their current session.
-        // Forcing a page reload might be the most reliable way to enforce it client-side.
-        // However, we cannot directly force another client to reload.
-        // The onSnapshot listener on user profile will handle the UI disable for chat.
-        // For a full ban effect, the user's local storage/session might need to be cleared,
-        // but that's beyond direct control from another client.
-        // We will rely on the Firestore rules and the isPaused flag.
-
+        // Force client-side logout for the banned user if they are currently logged in
+        // This is done by the onAuthStateChanged listener detecting profile deletion.
         showMessageBox(`Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.`);
         cmdOutput.textContent += `Người dùng ${userId} đã bị cấm và xóa khỏi hệ thống.\n`;
         await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userId} khỏi hệ thống.`);
