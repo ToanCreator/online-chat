@@ -64,16 +64,7 @@
                 <div class="checkmark"></div>
                 Tích vào ô này nếu bạn đồng ý hết các điều khoản trên
             </label>
-            <div id="countdown-timer" class="countdown-timer">Vui lòng đợi 60 giây...</div>
-            <button id="start-chat-btn" class="start-chat-button disabled" disabled>Bắt đầu</button>
-        </div>
-    </div>
-    <!-- Thêm modal chặn người dùng -->
-    <div id="ban-notification-modal" class="modal">
-        <div class="modal-content">
-            <h2 class="modal-title">TÀI KHOẢN CỦA BẠN ĐÃ BỊ CẤM</h2>
-            <p>Toàn bộ dữ liệu của bạn đã bị xóa.</p>
-            <p>Vui lòng refresh trình duyệt.</p>
+            <button id="start-chat-btn" class="start-chat-button disabled" disabled>Bắt đầu (<span id="countdown">60</span>s)</button>
         </div>
     </div>
 
@@ -228,7 +219,14 @@
             <button id="message-box-ok-btn">OK</button>
         </div>
     </div>
-
+    
+    <div id="ban-overlay" style="display: none;">
+        <div class="ban-content">
+            <h1>BẠN ĐÃ BỊ CẤM!</h1>
+            <p>Tài khoản, tin nhắn và toàn bộ dữ liệu của bạn đã bị xóa khỏi hệ thống.</p>
+            <p>Vui lòng làm mới trang (F5) để thoát.</p>
+        </div>
+    </div>
     <!-- Main JavaScript file (now a module) -->
     <script type="module" src="js/script.js"></script>
 </body>
