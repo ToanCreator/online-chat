@@ -6,7 +6,7 @@ const firebaseConfig = {
     apiKey: "AIzaSyD4ja8kpnQNeWhfpgcKsbC9UNOyVC_ibyo",
     authDomain: "toancreator-online-chat.firebaseapp.com",
     projectId: "toancreator-online-chat",
-    storageBucket: "toancreator-online-chat.firebaseapp.com",
+    storageBucket: "toancreator-online-chat.firebasestorage.app",
     messagingSenderId: "683126416659",
     appId: "1:683126416659:web:2fe64da2f203dac119e6e6",
     measurementId: "G-4ZYYCLPSF5"
@@ -49,7 +49,6 @@ const groupNameDisplay = document.querySelector('.group-name-display');
 const contactList = document.querySelector('.contact-list');
 const createJoinGroupBtn = document.querySelector('.create-join-group');
 const uploadImageBtn = document.getElementById('upload-image-btn');
-const termsCountdownDisplay = document.getElementById('terms-countdown'); // Added for countdown
 
 // Chat interface modals and buttons
 const createJoinGroupModal = document.getElementById('create-join-group-modal');
@@ -109,31 +108,15 @@ let isUserSessionLoaded = false; // True when user data (currentUser) is loaded 
 const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com'];
 const userColorMap = {}; // Map to store unique colors for user IDs
 
-let termsCountdownTimer = null; // Timer for the terms modal countdown
-let termsCountdownFinished = false; // New flag for countdown status
-
 // --- Utility Functions ---
 
 /**
  * Displays a custom message box.
  * @param {string} message - The message to display.
- * @param {boolean} [dismissible=true] - If true, the message box can be dismissed. If false, it cannot.
  */
-function showMessageBox(message, dismissible = true) {
+function showMessageBox(message) {
     messageBoxText.textContent = message;
     messageBox.style.display = 'flex';
-    if (dismissible) {
-        messageBoxOkBtn.classList.remove('hidden');
-        messageBox.classList.remove('non-dismissible'); // Ensure it's dismissible
-        messageBoxOkBtn.addEventListener('click', hideMessageBox, { once: true });
-        // Add listener for outside click only for dismissible messageBox
-        messageBox.addEventListener('click', dismissModalOutside);
-    } else {
-        messageBoxOkBtn.classList.add('hidden');
-        messageBox.classList.add('non-dismissible'); // Mark as non-dismissible
-        // Remove listener for outside click if it was there
-        messageBox.removeEventListener('click', dismissModalOutside);
-    }
 }
 
 /**
@@ -141,35 +124,9 @@ function showMessageBox(message, dismissible = true) {
  */
 function hideMessageBox() {
     messageBox.style.display = 'none';
-    messageBoxOkBtn.classList.remove('hidden');
-    messageBox.classList.remove('non-dismissible'); // Reset for next time
-    messageBoxOkBtn.removeEventListener('click', hideMessageBox);
-    // Ensure listener for outside click is removed when hiding the message box
-    messageBox.removeEventListener('click', dismissModalOutside);
 }
 
-
-// Close buttons for all modals
-closeButtons.forEach(button => {
-    button.addEventListener('click', (event) => {
-        const modal = event.target.closest('.modal');
-        if (modal) {
-            toggleModal(modal, false);
-        }
-    });
-});
-
-/**
- * Function to handle clicking outside a modal to close it.
- * @param {Event} event - The click event.
- */
-window.addEventListener('click', (event) => {
-    // Only dismiss if the clicked element is a modal background AND it's not the messageBox
-    if (event.target.classList.contains('modal') && event.target !== messageBox) {
-        toggleModal(event.target, false);
-    }
-});
-
+messageBoxOkBtn.addEventListener('click', hideMessageBox);
 
 /**
  * Toggles the visibility of a modal.
@@ -183,14 +140,25 @@ function toggleModal(modalElement, show) {
         if (typeof grecaptcha !== 'undefined' && modalElement.id === 'auth-modal') {
             grecaptcha.reset();
         }
-        if (modalElement.id === 'terms-modal' && termsCountdownTimer) {
-            clearInterval(termsCountdownTimer);
-            termsCountdownDisplay.textContent = '';
-            termsCountdownFinished = false; // Reset the flag
-            updateStartChatButtonState(); // Update button state
-        }
     }
 }
+
+// Close buttons for all modals
+closeButtons.forEach(button => {
+    button.addEventListener('click', (event) => {
+        const modal = event.target.closest('.modal');
+        if (modal) {
+            toggleModal(modal, false);
+        }
+    });
+});
+
+// Close modal when clicking outside content
+window.addEventListener('click', (event) => {
+    if (event.target.classList.contains('modal')) {
+        toggleModal(event.target, false);
+    }
+});
 
 /**
  * Generates a unique ID (UUID v4).
@@ -379,21 +347,12 @@ async function handleAuthStateAndUI(user) {
                         newGroupPasswordInput.disabled = false;
                     }
                 } else {
-                    // If user profile is deleted (e.g., banned), sign out and show ban message
-                    console.log("User profile document does not exist. Initiating sign out and ban message.");
-                    signOut(auth); // Explicitly sign out
-                    showMessageBox("Tài khoản của bạn đã bị xóa hoặc cấm. Vui lòng tải lại trang.", false); // Non-dismissible
-                    startScreen.classList.add('hidden'); // Ensure no other UI elements interfere
-                    chatInterface.classList.add('hidden'); // Hide chat interface
-                    toggleModal(authModal, false);
-                    toggleModal(termsModal, false);
-                    // Prevent any further interaction by returning
-                    return;
+                    // If user profile is deleted (e.g., banned), sign out
+                    signOut(auth);
+                    showMessageBox("Tài khoản của bạn đã bị xóa hoặc cấm.");
                 }
             }, (error) => {
                 console.error("Error listening to user profile changes:", error);
-                // Handle cases where listener itself fails (e.g., permissions)
-                showMessageBox(`Lỗi theo dõi tài khoản: ${error.code || error.message}. Vui lòng tải lại trang.`, false);
             });
 
         } else {
@@ -411,11 +370,6 @@ async function handleAuthStateAndUI(user) {
         startScreen.classList.add('hidden');
         toggleModal(authModal, true);
         toggleModal(termsModal, false);
-        // If current user becomes null after being logged in (e.g., due to ban), show ban message
-        // This check ensures it's not the initial load where user is legitimately null
-        if (firebaseAuthChecked && currentUser !== null) { // This means a user *was* logged in and now isn't
-             showMessageBox("Bạn đã bị đăng xuất khỏi hệ thống. Vui lòng tải lại trang nếu có lỗi.", false); // Non-dismissible if this happened unexpectedly
-        }
     }
     firebaseAuthChecked = true; // Mark Firebase auth as checked
     // Re-evaluate startChatBtn state after auth check
@@ -878,8 +832,6 @@ setupBtn.addEventListener('click', () => {
 
     toggleModal(authModal, false);
     toggleModal(termsModal, true);
-    // Start countdown when terms modal is shown
-    startTermsCountdown();
     // Update button state immediately after showing terms modal
     updateStartChatButtonState();
 
@@ -889,49 +841,25 @@ setupBtn.addEventListener('click', () => {
     }
 });
 
-// New function for terms countdown
-function startTermsCountdown() {
-    let timeLeft = 60;
-    termsCountdownDisplay.textContent = `Vui lòng đợi ${timeLeft} giây...`;
-    startChatBtn.disabled = true;
-    startChatBtn.classList.add('disabled');
-    termsCountdownFinished = false; // Reset the flag
-
-    if (termsCountdownTimer) clearInterval(termsCountdownTimer); // Clear any existing timer
-    termsCountdownTimer = setInterval(() => {
-        timeLeft--;
-        if (timeLeft <= 0) {
-            clearInterval(termsCountdownTimer);
-            termsCountdownDisplay.textContent = 'Bạn có thể bắt đầu chat!';
-            termsCountdownFinished = true; // Set the flag
-            updateStartChatButtonState(); // Re-check state after countdown
-        } else {
-            termsCountdownDisplay.textContent = `Vui lòng đợi ${timeLeft} giây...`;
-        }
-    }, 1000);
-}
-
 agreeTermsCheckbox.addEventListener('change', () => {
     updateStartChatButtonState();
 });
 
 function updateStartChatButtonState() {
     // Log the values that determine the button state
-    console.log("Updating Start Chat button state - Debugging:");
+    console.log("Updating Start Chat button state:");
     console.log("  agreeTermsCheckbox.checked:", agreeTermsCheckbox.checked);
     console.log("  firebaseAuthChecked:", firebaseAuthChecked);
     console.log("  currentUserId:", currentUserId);
-    console.log("  termsCountdownFinished:", termsCountdownFinished); // Use the new flag
 
-
-    if (agreeTermsCheckbox.checked && firebaseAuthChecked && currentUserId && termsCountdownFinished) {
+    if (agreeTermsCheckbox.checked && firebaseAuthChecked && currentUserId) {
         startChatBtn.disabled = false;
         startChatBtn.classList.remove('disabled');
-        console.log("Start Chat button ENABLED.");
+        console.log("Start Chat button enabled.");
     } else {
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
-        console.log("Start Chat button DISABLED.");
+        console.log("Start Chat button disabled.");
     }
 }
 
@@ -940,10 +868,6 @@ startChatBtn.addEventListener('click', async () => {
     console.log("Start Chat button clicked.");
     if (!agreeTermsCheckbox.checked) {
         showMessageBox("Bạn phải đồng ý với các điều khoản để bắt đầu.");
-        return;
-    }
-    if (startChatBtn.disabled) { // Double check if button is still disabled by countdown
-        showMessageBox("Vui lòng đợi hết thời gian chờ trước khi bắt đầu.");
         return;
     }
     if (!currentUserId) {
@@ -1422,13 +1346,7 @@ async function toggleUserPause(userId, pause) {
         }
         await updateDoc(userProfileRef, { isPaused: pause });
         cmdOutput.textContent += `Người dùng ${userId} đã ${pause ? 'bị khóa' : 'được mở khóa'} chat.\n`;
-        // Send a system message to all groups the user is in
-        const userData = userSnap.data();
-        if (userData.groups && userData.groups.length > 0) {
-            for (const groupId of userData.groups) {
-                await sendSystemMessage(groupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat của người dùng ${userData.name} (ID: ${userId}).`);
-            }
-        }
+        await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat của người dùng ${userId}.`);
     } catch (e) {
         cmdOutput.textContent += `Lỗi khi ${pause ? 'khóa' : 'mở khóa'} người dùng ${userId}: ${e.code || e.message}\n`;
     }
@@ -1454,7 +1372,7 @@ async function clearMessages(targetId) {
         } else {
             // Target is likely a user ID, clear messages by this user across all groups
             const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
-            const groupsSnapshot = await getDocs(groupsCollectionRef); // Ensure await here
+            const groupsSnapshot = await await getDocs(groupsCollectionRef); // Ensure await here
 
             for (const groupDoc of groupsSnapshot.docs) {
                 const groupId = groupDoc.id;
@@ -1467,7 +1385,6 @@ async function clearMessages(targetId) {
             }
             await batch.commit(); // Commit batch for all user messages
             cmdOutput.textContent += `Đã xóa tất cả tin nhắn của người dùng ${targetId} trên tất cả các nhóm.\n`;
-            // Sending system message to the active group, as a general notification
             await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn của người dùng ${targetId}.`);
         }
     } catch (e) {
@@ -1540,8 +1457,7 @@ async function toggleAllPause(pause) {
         }
         await batch.commit();
         cmdOutput.textContent += `Đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng (trừ admin).\n`;
-        // Send system message to default group
-        await sendSystemMessage('default-group', `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng.`);
+        await sendSystemMessage(activeGroupId, `Admin đã ${pause ? 'khóa' : 'mở khóa'} chat cho tất cả người dùng.`);
     } catch (e) {
         cmdOutput.textContent += `Lỗi khi ${pause ? 'khóa' : 'mở khóa'} tất cả người dùng: ${e.code || e.message}\n`;
     }
@@ -1564,8 +1480,7 @@ async function clearAllMessages() {
         }
         await batch.commit(); // Commit all batched operations
         cmdOutput.textContent += "Đã xóa tất cả tin nhắn trên tất cả các nhóm.\n";
-        // Send system message to default group
-        await sendSystemMessage('default-group', `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
+        await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
     } catch (e) {
         cmdOutput.textContent += `Lỗi khi xóa tất cả tin nhắn: ${e.code || e.message}\n`;
     }
@@ -1586,9 +1501,17 @@ async function banUser(userId) {
         }
         const userData = userSnap.data();
 
+        // 1. Mark user as paused immediately (this should disable chat/group creation via listener)
+        // This is done implicitly by deleting the profile which triggers signOut(auth)
+        // If you wanted to only pause without deleting, you'd do:
+        // await updateDoc(userProfileRef, { isPaused: true });
+        // showMessageBox(`Người dùng ${userId} đã bị tạm khóa chat.`);
+        // cmdOutput.textContent += `Người dùng ${userId} đã bị tạm khóa chat và tạo nhóm.\n`;
+
+
         const batch = writeBatch(db);
 
-        // 1. Delete groups created by this user (except default-group)
+        // 2. Delete groups created by this user (except default-group)
         const groupsCreatedByUserQuery = query(
             collection(db, `artifacts/${appId}/public/data/groups`),
             where('creatorId', '==', userId)
@@ -1603,7 +1526,7 @@ async function banUser(userId) {
             if (groupDoc.id !== 'default-group') {
                 const groupIdToDelete = groupDoc.id;
                 const groupData = groupDoc.data();
-
+                
                 // Delete all messages in this group
                 const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupIdToDelete}/messages`);
                 const messagesSnapshot = await getDocs(query(messagesRef));
@@ -1626,7 +1549,7 @@ async function banUser(userId) {
             }
         }
 
-        // 2. Remove user from all other groups they are a member of
+        // 3. Remove user from all other groups they are a member of
         cmdOutput.textContent += `Đang xóa người dùng ${userId} khỏi các nhóm khác...\n`;
         const allGroupsRef = collection(db, `artifacts/${appId}/public/data/groups`);
         const allGroupsSnapshot = await getDocs(allGroupsRef);
@@ -1642,7 +1565,7 @@ async function banUser(userId) {
             }
         }
 
-        // 3. Delete all messages sent by this user across all groups
+        // 4. Delete all messages sent by this user across all groups
         cmdOutput.textContent += `Đang xóa tin nhắn của người dùng ${userId}...\n`;
         const messagesToDelete = [];
         for (const groupDoc of allGroupsSnapshot.docs) { // Re-iterate all groups for messages
@@ -1662,23 +1585,15 @@ async function banUser(userId) {
         }
 
 
-        // 4. Delete the user's profile document
+        // 5. Delete the user's profile document
         cmdOutput.textContent += `Đang xóa hồ sơ người dùng ${userId}...\n`;
         batch.delete(userProfileRef);
 
         await batch.commit();
 
-        // Send a system message to all groups the user was in
-        if (userData.groups && userData.groups.length > 0) {
-            for (const groupId of userData.groups) {
-                await sendSystemMessage(groupId, `Admin đã cấm và xóa người dùng ${userData.name} (ID: ${userId}) khỏi hệ thống.`);
-            }
-        }
-        // This message box is for the admin who executed the command
-        showMessageBox(`Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.`, true); // Now dismissible for admin
+        showMessageBox(`Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.`);
         cmdOutput.textContent += `Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.\n`;
-
-        // The banned user's client will handle showing the non-dismissible message via the onSnapshot listener on their profile doc.
+        await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userData.name} (ID: ${userId}) khỏi hệ thống.`);
 
     } catch (e) {
         console.error("Error banning user:", e);
