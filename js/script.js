@@ -511,33 +511,6 @@ async function registerUser(name) {
     }
 }
 
-console.log("Before creating user profile:", userProfileDocRef.path, newUserData);
-await setDoc(userProfileDocRef, newUserData);
-console.log("User profile created successfully.");
-
-// ...
-console.log("Before default group operation. Is default group exist?", defaultGroupSnap.exists());
-if (defaultGroupSnap.exists()) {
-    console.log("Before updating default group members.");
-    await updateDoc(defaultGroupRef, {
-        members: [...currentMembers, currentUserId]
-    });
-    console.log("Default group members updated.");
-} else {
-    console.log("Before creating default group.", defaultGroupRef.path, { /* data being written */ });
-    await setDoc(defaultGroupRef, {
-        name: 'Dô la - ToanCreator',
-        creatorId: actualCreatorId,
-        creatorName: actualCreatorName,
-        id: 'default-group',
-        createdAt: serverTimestamp(),
-        members: [currentUserId],
-        isPublic: true,
-        password: null,
-    });
-    console.log("Default group created.");
-}
-
 /**
  * Updates the user profile information in the UI.
  */
