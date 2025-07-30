@@ -105,7 +105,7 @@ let firebaseAuthChecked = false; // True when onAuthStateChanged has run at leas
 let isFirebaseInitialized = false; // True when Firebase app and services are initialized
 let isUserSessionLoaded = false; // True when user data (currentUser) is loaded from Firestore
 
-const adminEmails = ['tranhoangtoan2k8@gmail.com', 'lehuutam20122008@gmail.com', 'emailracvl5@gmail.com'];
+const adminEmails = ['tranhoangtoan2k8@gmail.com','lehuutam20122008@gmail.com','emailracvl5@gmail.com'];
 const userColorMap = {}; // Map to store unique colors for user IDs
 
 // --- Utility Functions ---
@@ -982,7 +982,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeAuth();
 });
 
-
 // --- Group Management Modals and Functions ---
 
 createJoinGroupBtn.addEventListener('click', () => {
@@ -1264,12 +1263,35 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     }
 });
 
+const refreshSignalRef = doc(db, `artifacts/${appId}/public/data`, 'refreshSignal');
+onSnapshot(refreshSignalRef, (docSnap) => {
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        const lastRefreshTime = localStorage.getItem('lastRefreshSignalTime');
+        if (!lastRefreshTime || (new Date().getTime() - lastRefreshTime > 5000)) {
+            // 5 second debounce
+            localStorage.setItem('lastRefreshSignalTime', new Date().getTime());
+            console.log("Refresh signal received! Reloading page...");
+            setTimeout(() => {
+                location.reload();
+                
+                }, 1000);
+                // Reload after 1 second
+                
+            } 
+            
+        }
+        
+    }, (error) => {
+        console.error("Error listening for refresh signal:", error);
+        
+    }); // KẾT THÚC ĐOẠN CODE CẦN THÊM });
 
 // --- Admin CMD Functions ---
 
 const cmdCommands = [
     ':pause', ':unpause', ':clear', ':showgroup', ':showpeople',
-    ':allpause', ':unallpause', ':allclear', ':ban'
+    ':allpause', ':unallpause', ':allclear', ':ban', ':refesh'
 ];
 
 function generateCmdKeyboard() {
@@ -1344,6 +1366,9 @@ async function executeAdminCommand() {
                 break;
             case ':allclear':
                 await clearAllMessages();
+                break;
+            case ':refresh':
+                await sendRefreshSignal();
                 break;
             case ':ban':
                 if (targetId) await banUser(targetId);
@@ -1506,6 +1531,25 @@ async function clearAllMessages() {
         await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
     } catch (e) {
         cmdOutput.textContent += `Lỗi khi xóa tất cả tin nhắn: ${e.code || e.message}\n`;
+    }
+}
+
+// Function to send a refresh signal to all clients
+async function sendRefreshSignal() {
+    try {
+        // Create a dedicated document for refresh signals
+        const refreshSignalRef = doc(db, `artifacts/${appId}/public/data`, 'refreshSignal');
+        await setDoc(refreshSignalRef, {
+            timestamp: serverTimestamp(),
+            triggeredBy: currentUser.id,
+            triggeredByName: currentUser.name
+        });
+        cmdOutput.textContent += "Đã gửi tín hiệu làm mới trang đến tất cả người dùng.\n";
+        showMessageBox("Đã gửi tín hiệu làm mới trang đến tất cả người dùng.");
+    } catch (e) {
+        console.error("Error sending refresh signal:", e);
+        cmdOutput.textContent += `Lỗi khi gửi tín hiệu làm mới: ${e.code || e.message}\n`;
+        showMessageBox(`Lỗi khi gửi tín hiệu làm mới: ${e.code || e.message}.`);
     }
 }
 
