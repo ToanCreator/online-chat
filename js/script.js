@@ -16,14 +16,12 @@ const firebaseConfig = {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-// NEW: Import functions for Firebase Storage
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-// NEW: Initialize Firebase Storage
 const storage = getStorage(app);
 
 // App ID from Canvas environment (if available)
@@ -52,12 +50,8 @@ const sendMessageBtn = document.getElementById('send-message-btn');
 const groupNameDisplay = document.querySelector('.group-name-display');
 const contactList = document.querySelector('.contact-list');
 const createJoinGroupBtn = document.querySelector('.create-join-group');
-
-// NEW: Updated DOM element for image upload
 const uploadImageInput = document.getElementById('upload-image-input');
-const uploadImageBtn = document.getElementById('upload-image-btn'); // Still needed to trigger the hidden input
-
-// Chat interface modals and buttons
+const uploadImageBtn = document.getElementById('upload-image-btn'); 
 const createJoinGroupModal = document.getElementById('create-join-group-modal');
 const showCreateGroupFormBtn = document.getElementById('show-create-group-form');
 const showJoinGroupFormBtn = document.getElementById('show-join-group-form');
@@ -68,7 +62,6 @@ const newGroupPasswordInput = document.getElementById('new-group-password');
 const createGroupBtn = document.getElementById('create-group-btn');
 const joinGroupIdInput = document.getElementById('join-group-id');
 const joinGroupBtn = document.getElementById('join-group-btn');
-
 const groupInfoBtn = document.getElementById('group-info-btn');
 const groupInfoModal = document.getElementById('group-info-modal');
 const infoGroupName = document.getElementById('info-group-name');
@@ -76,27 +69,24 @@ const infoGroupCreator = document.getElementById('info-group-creator');
 const infoGroupId = document.getElementById('info-group-id');
 const infoGroupCreationDate = document.getElementById('info-group-creation-date');
 const infoMemberCount = document.getElementById('info-member-count');
-
 const inviteUserBtn = document.getElementById('invite-user-btn');
 const inviteUserModal = document.getElementById('invite-user-modal');
 const inviteUserIdInput = document.getElementById('invite-user-id');
 const sendInviteBtn = document.getElementById('send-invite-btn');
-
 const deleteGroupBtn = document.getElementById('delete-group-btn');
 const deleteGroupModal = document.getElementById('delete-group-modal');
 const deleteGroupPasswordInput = document.getElementById('delete-group-password');
 const confirmDeleteGroupBtn = document.getElementById('confirm-delete-group-btn');
-
 const cmdBtn = document.getElementById('cmd-btn');
 const adminCmdModal = document.getElementById('admin-cmd-modal');
 const cmdInput = document.getElementById('cmd-input');
 const executeCmdBtn = document.getElementById('execute-cmd-btn');
 const cmdOutput = document.getElementById('cmd-output');
 const cmdKeyboard = document.getElementById('cmd-keyboard');
-
 const messageBox = document.getElementById('message-box');
 const messageBoxText = document.getElementById('message-box-text');
 const messageBoxOkBtn = document.getElementById('message-box-ok-btn');
+const banOverlay = document.getElementById('ban-overlay');
 
 // --- Global Variables ---
 let currentUser = null;
@@ -106,68 +96,42 @@ let currentUserIsAdmin = false;
 let userIpAddress = 'unknown'; // Placeholder for IP address
 let activeGroupId = 'default-group'; // Default group ID
 let activeGroupData = null; // Stores data for the currently active group
-
-// Flags to manage Firebase and UI state
-let firebaseAuthChecked = false; // True when onAuthStateChanged has run at least once
-let isFirebaseInitialized = false; // True when Firebase app and services are initialized
-let isUserSessionLoaded = false; // True when user data (currentUser) is loaded from Firestore
-
+let firebaseAuthChecked = false;
+let isFirebaseInitialized = false;
+let isUserSessionLoaded = false;
 const adminEmails = ['tranhoangtoan2k8@gmail.com','lehuutam20122008@gmail.com','emailracvl5@gmail.com'];
 const userColorMap = {}; // Map to store unique colors for user IDs
 
 // --- Utility Functions ---
-
-/**
- * Displays a custom message box.
- * @param {string} message - The message to display.
- * @param {string} type - 'info', 'success', 'error', 'progress'
- */
 function showMessageBox(message, type = 'info') {
     messageBoxText.textContent = message;
     messageBox.style.display = 'flex';
-    messageBox.className = 'message-box'; // Reset classes
+    messageBox.className = 'message-box';
     if (type) {
         messageBox.classList.add(type);
     }
 }
 
-/**
- * Updates the message in the custom message box.
- * @param {string} message - The new message.
- */
 function updateMessageBox(message) {
     if (messageBox.style.display === 'flex') {
         messageBoxText.textContent = message;
     }
 }
 
-
-/**
- * Hides the custom message box.
- */
 function hideMessageBox() {
     messageBox.style.display = 'none';
-    messageBox.className = 'message-box'; // Reset classes
+    messageBox.className = 'message-box';
 }
 
 messageBoxOkBtn.addEventListener('click', hideMessageBox);
 
-/**
- * Toggles the visibility of a modal.
- * @param {HTMLElement} modalElement - The modal element to toggle.
- * @param {boolean} show - True to show, false to hide.
- */
 function toggleModal(modalElement, show) {
     modalElement.style.display = show ? 'flex' : 'none';
-    if (!show) {
-        // Reset reCAPTCHA when auth modal is closed
-        if (typeof grecaptcha !== 'undefined' && modalElement.id === 'auth-modal') {
-            grecaptcha.reset();
-        }
+    if (!show && typeof grecaptcha !== 'undefined' && modalElement.id === 'auth-modal') {
+        grecaptcha.reset();
     }
 }
 
-// Close buttons for all modals
 closeButtons.forEach(button => {
     button.addEventListener('click', (event) => {
         const modal = event.target.closest('.modal');
@@ -177,17 +141,12 @@ closeButtons.forEach(button => {
     });
 });
 
-// Close modal when clicking outside content
 window.addEventListener('click', (event) => {
     if (event.target.classList.contains('modal')) {
         toggleModal(event.target, false);
     }
 });
 
-/**
- * Generates a unique ID (UUID v4).
- * @returns {string} A unique ID.
- */
 function generateUniqueId() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0,
@@ -196,10 +155,6 @@ function generateUniqueId() {
     });
 }
 
-/**
- * Generates a random hex color.
- * @returns {string} A hex color string (e.g., "#RRGGBB").
- */
 function getRandomColor() {
     const letters = '0123456789ABCDEF';
     let color = '#';
@@ -209,11 +164,6 @@ function getRandomColor() {
     return color;
 }
 
-/**
- * Gets a unique color for a given user ID.
- * @param {string} userId - The ID of the user.
- * @returns {string} A unique hex color for the user.
- */
 function getUserColor(userId) {
     if (!userColorMap[userId]) {
         userColorMap[userId] = getRandomColor();
@@ -221,11 +171,6 @@ function getUserColor(userId) {
     return userColorMap[userId];
 }
 
-/**
- * Formats a timestamp into a readable date and time string, including relative times.
- * @param {firebase.firestore.Timestamp|Date|any} timestamp - The timestamp to format.
- * @returns {string} Formatted date and time.
- */
 function formatTimestamp(timestamp) {
     let date;
     if (timestamp && typeof timestamp.toDate === 'function') {
@@ -261,20 +206,10 @@ function formatTimestamp(timestamp) {
     }
 }
 
-/**
- * Validates full name input (allows Vietnamese characters, numbers, spaces, max 20 chars).
- * @param {string} name - The name to validate.
- * @returns {boolean} True if valid, false otherwise.
- */
 function isValidFullName(name) {
-    // Allows Vietnamese characters (including diacritics), English letters, numbers, and spaces.
-    // Updated regex to include common Vietnamese diacritics
     return /^[a-zA-Z0-9\sÀÁẠẢÃĂẰẮẶẲẴÂẦẤẬẨẪÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐđ]{1,20}$/.test(name);
 }
 
-/**
- * Fetches user's IP address (placeholder, actual IP cannot be fetched directly from client-side JS).
- */
 async function fetchUserIpAddress() {
     try {
         const response = await fetch('https://api.ipify.org?format=json');
@@ -288,12 +223,10 @@ async function fetchUserIpAddress() {
 }
 
 // --- Firebase Authentication and User Management ---
-
-// Initial sign-in logic
 async function initializeAuth() {
     if (isFirebaseInitialized) {
         console.log("Firebase already initialized. Skipping re-initialization.");
-        return; // Prevent re-initialization
+        return;
     }
 
     console.log("Initializing Firebase Auth...");
@@ -306,22 +239,18 @@ async function initializeAuth() {
             userCredential = await signInAnonymously(auth);
             console.log("signInAnonymously SUCCESS. User UID:", userCredential.user.uid);
         }
-        isFirebaseInitialized = true; // Mark Firebase as initialized
-        // onAuthStateChanged will be triggered by Firebase SDK automatically
+        isFirebaseInitialized = true;
     } catch (error) {
         console.error("Error during initial Firebase sign-in (initializeAuth):", error);
         showMessageBox(`Lỗi khởi tạo đăng nhập: ${error.code || error.message}. Vui lòng kiểm tra cấu hình Firebase Auth (đặc biệt là Anonymous Authentication).`);
-        isFirebaseInitialized = true; // Still mark as initialized to avoid infinite loops, but with error
-        // If initial sign-in fails, onAuthStateChanged will be called with null user.
-        // We ensure UI state is updated by onAuthStateChanged.
+        isFirebaseInitialized = true;
     }
 }
 
-// Function to handle UI transitions based on auth state and user data
 async function handleAuthStateAndUI(user) {
     currentUserId = user ? user.uid : null;
     console.log("onAuthStateChanged fired. User:", user ? user.uid : "null");
-    console.log("Current currentUserId after onAuthStateChanged:", currentUserId); // Log currentUserId here
+    console.log("Current currentUserId after onAuthStateChanged:", currentUserId);
 
     if (!userIpAddress || userIpAddress === 'unknown') {
         await fetchUserIpAddress();
@@ -348,12 +277,10 @@ async function handleAuthStateAndUI(user) {
             updateUserProfileUI();
             loadUserGroups();
             loadMessages(activeGroupId);
-
-            // Setup real-time listener for current user's profile to handle pause/unpause/ban
             onSnapshot(doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data'), (docSnap) => {
                 if (docSnap.exists()) {
                     const userData = docSnap.data();
-                    currentUser.isPaused = userData.isPaused; // Update local state
+                    currentUser.isPaused = userData.isPaused;
                     if (currentUser.isPaused) {
                         messageInput.disabled = true;
                         sendMessageBtn.disabled = true;
@@ -362,7 +289,6 @@ async function handleAuthStateAndUI(user) {
                         newGroupNameInput.disabled = true;
                         newGroupPasswordInput.disabled = true;
                         showMessageBox("Tài khoản của bạn đã bị tạm khóa chức năng chat bởi Admin.");
-                        
                     } else {
                         messageInput.disabled = false;
                         sendMessageBtn.disabled = false;
@@ -370,25 +296,18 @@ async function handleAuthStateAndUI(user) {
                         createGroupBtn.disabled = false;
                         newGroupNameInput.disabled = false;
                         newGroupPasswordInput.disabled = false;
-        }
-        
-    } else {
-        // Nếu hồ sơ người dùng bị xóa (lệnh ban đã thực thi)
-        // Hiển thị màn hình chặn toàn trang
-        const banOverlay = document.getElementById('ban-overlay');
-        if (banOverlay) {
-            banOverlay.style.display = 'flex';
-        }
-        // Vô hiệu hóa toàn bộ giao diện chat
-        chatInterface.style.pointerEvents = 'none';
-    }
-}, (error) => {
-    console.error("Error listening to user profile changes:", error);
-    
-});
-
+                    }
+                } else {
+                    const banOverlay = document.getElementById('ban-overlay');
+                    if (banOverlay) {
+                        banOverlay.style.display = 'flex';
+                    }
+                    chatInterface.style.pointerEvents = 'none';
+                }
+            }, (error) => {
+                console.error("Error listening to user profile changes:", error);
+            });
         } else {
-            // User exists in Firebase auth, but data not loaded (e.g., new user, IP mismatch for non-admin)
             isUserSessionLoaded = false;
             console.log("User authenticated, but session data not loaded. Showing auth modal.");
             startScreen.classList.add('hidden');
@@ -396,32 +315,21 @@ async function handleAuthStateAndUI(user) {
             toggleModal(termsModal, false);
         }
     } else {
-        // User is logged out or initial anonymous sign-in failed
         isUserSessionLoaded = false;
         console.log("User logged out or not authenticated. Showing auth modal.");
         startScreen.classList.add('hidden');
         toggleModal(authModal, true);
         toggleModal(termsModal, false);
     }
-    firebaseAuthChecked = true; // Mark Firebase auth as checked
-    // Re-evaluate startChatBtn state after auth check
-    updateStartChatButtonState();
+    firebaseAuthChecked = true;
 }
 
-// Listen for Firebase Auth state changes
 onAuthStateChanged(auth, handleAuthStateAndUI);
 
-/**
- * Loads user data from Firestore based on UID or IP.
- * @param {string} uid - The Firebase User ID.
- * @param {string} ip - The user's IP address.
- * @returns {boolean} True if user data was loaded successfully, false otherwise.
- */
 async function loadUserData(uid, ip) {
     const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
     try {
         const userDocSnap = await getDoc(userDocRef);
-
         if (userDocSnap.exists()) {
             const userData = userDocSnap.data();
             if (userData.ipAddress === ip || currentUserIsAdmin) {
@@ -446,11 +354,6 @@ async function loadUserData(uid, ip) {
         return false;
     }
 }
-
-/**
- * Registers a new user and saves their data to Firestore.
- * @param {string} name - The user's chosen name.
- */
 
 async function registerUser(name) {
     if (!currentUserId) {
@@ -504,14 +407,12 @@ async function registerUser(name) {
                 console.log("User added to default group members.");
             }
         } else {
-            // SỬA LỖI: Xác định creatorId và creatorName dựa trên người dùng hiện tại
-            const actualCreatorId = currentUserId; // Người tạo thực sự là người dùng hiện tại
-            const actualCreatorName = name; // Tên người tạo là tên của người dùng hiện tại
-
+            const actualCreatorId = currentUserId;
+            const actualCreatorName = name;
             await setDoc(defaultGroupRef, {
                 name: 'Dô la - ToanCreator',
-                creatorId: actualCreatorId, // Sử dụng ID của người dùng đang tạo
-                creatorName: actualCreatorName, // Sử dụng tên của người dùng đang tạo
+                creatorId: actualCreatorId,
+                creatorName: actualCreatorName,
                 id: 'default-group',
                 createdAt: serverTimestamp(),
                 members: [currentUserId],
@@ -543,9 +444,6 @@ async function registerUser(name) {
     }
 }
 
-/**
- * Updates the user profile information in the UI.
- */
 function updateUserProfileUI() {
     if (currentUser) {
         userNameDisplay.textContent = currentUser.name;
@@ -554,9 +452,6 @@ function updateUserProfileUI() {
     }
 }
 
-/**
- * Loads and displays the list of groups the user belongs to.
- */
 function loadUserGroups() {
     if (!currentUser || !currentUserId) {
         console.warn("Cannot load groups: currentUser or currentUserId is null.");
@@ -606,11 +501,6 @@ function loadUserGroups() {
     });
 }
 
-/**
- * Switches the active chat group.
- * @param {string} groupId - The ID of the group to switch to.
- * @param {string} groupName - The name of the group.
- */
 async function switchGroup(groupId, groupName) {
     if (activeGroupId === groupId) return;
 
@@ -645,11 +535,6 @@ async function switchGroup(groupId, groupName) {
     }
 }
 
-/**
- * Loads messages for a given group and sets up a real-time listener.
- * @param {string} groupId - The ID of the group to load messages for.
- * @returns {Promise<void>}
- */
 function loadMessages(groupId) {
     return new Promise((resolve, reject) => {
         if (!db) {
@@ -685,16 +570,12 @@ function loadMessages(groupId) {
     });
 }
 
-/**
- * Displays a single message in the chat interface.
- * @param {object} message - The message object.
- */
 function displayMessage(message) {
     const messageBubble = document.createElement('div');
     messageBubble.classList.add('message-bubble');
 
     let senderInfoHtml = '';
-    let messageTextContent = ''; // NEW: Separate content from the element
+    let messageTextContent = '';
     let messageTextClass = 'message-text';
     let senderNameStyle = '';
 
@@ -710,7 +591,7 @@ function displayMessage(message) {
         messageTextClass += ' italic';
     } else if (message.type === 'system') {
         messageBubble.classList.add('system-message');
-        messageBubble.innerHTML = message.text; // System messages are simple text
+        messageBubble.innerHTML = message.text;
         chatMessages.appendChild(messageBubble);
         return;
     } else {
@@ -722,12 +603,9 @@ function displayMessage(message) {
         `;
     }
 
-    // NEW: Handle different message types (text and image)
     if (message.type === 'image') {
-        // Assume message.text already contains the <img> tag
         messageTextContent = message.text;
     } else {
-        // Handle normal text message
         messageTextContent = message.text.replace(/\n/g, '<br>');
     }
 
@@ -750,10 +628,6 @@ function displayMessage(message) {
     }
 }
 
-/**
- * Copies text to the clipboard.
- * @param {string} text - The text to copy.
- */
 function copyToClipboard(text) {
     const textarea = document.createElement('textarea');
     textarea.value = text;
@@ -767,14 +641,9 @@ function copyToClipboard(text) {
     document.body.removeChild(textarea);
 }
 
-/**
- * Sends a chat message to the active group.
- * @param {string} text - The message text or HTML content (e.g., an <img> tag).
- * @param {string} type - The message type ('chat' or 'image').
- */
 async function sendMessage(text, type = 'chat') {
     const messageText = text.trim();
-    if (messageText === '' || !currentUser || !activeGroupId) {
+    if (messageText === '' && type === 'chat' || !currentUser || !activeGroupId) {
         return;
     }
 
@@ -788,7 +657,7 @@ async function sendMessage(text, type = 'chat') {
         senderName: currentUser.name,
         text: messageText,
         timestamp: serverTimestamp(),
-        type: type // Use the provided type
+        type: type
     };
 
     try {
@@ -804,11 +673,6 @@ async function sendMessage(text, type = 'chat') {
     }
 }
 
-/**
- * Sends a system message to a specific group.
- * @param {string} groupId - The ID of the group.
- * @param {string} message - The system message text.
- */
 async function sendSystemMessage(groupId, message) {
     const systemMessage = {
         senderId: 'system',
@@ -860,70 +724,34 @@ fullNameInput.addEventListener('input', () => {
     }
 });
 
-// Biến để quản lý bộ đếm ngược
 let countdownInterval;
-
-setupBtn.addEventListener('click', () => {
-    const fullName = fullNameInput.value.trim();
-    const recaptchaResponse = grecaptcha.getResponse();
-
-    if (!isValidFullName(fullName)) {
-        showMessageBox("Họ và Tên không hợp lệ. Chỉ chấp nhận chữ, số, và ký tự ko dấu, tối đa 20 ký tự.");
-        return;
-    }
-
-    if (!recaptchaResponse) {
-        showMessageBox("Vui lòng xác minh bạn không phải là robot.");
-        return;
-    }
-
-    toggleModal(authModal, false);
-    toggleModal(termsModal, true);
-
-    // Reset reCAPTCHA sau khi qua bước này
-    if (typeof grecaptcha !== 'undefined') {
-        grecaptcha.reset();
-    }
-});
-
 agreeTermsCheckbox.addEventListener('change', function() {
-    // Hủy bộ đếm ngược cũ nếu có
     if (countdownInterval) {
         clearInterval(countdownInterval);
     }
-
+    const startChatBtn = document.getElementById('start-chat-btn');
     if (this.checked && firebaseAuthChecked && currentUserId) {
-        // Khi người dùng đồng ý, bắt đầu đếm ngược
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
         let seconds = 15;
-        const countdownSpan = document.getElementById('countdown');
-
-        // Cập nhật giao diện nút ngay lập tức
         startChatBtn.innerHTML = `Bắt đầu sau <span id="countdown">${seconds}</span>s`;
-
+        const countdownSpan = document.getElementById('countdown');
         countdownInterval = setInterval(() => {
             seconds--;
             if(countdownSpan) countdownSpan.textContent = seconds;
-
             if (seconds <= 0) {
                 clearInterval(countdownInterval);
                 startChatBtn.disabled = false;
                 startChatBtn.classList.remove('disabled');
-                startChatBtn.textContent = 'Bắt đầu'; // Bỏ bộ đếm
+                startChatBtn.textContent = 'Bắt đầu';
             }
         }, 1000);
     } else {
-        // Nếu bỏ tick hoặc chưa xác thực, vô hiệu hóa nút ngay lập tức
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
         startChatBtn.innerHTML = `Bắt đầu sau <span id="countdown">15</span>s`;
     }
 });
-
-// Hàm này không còn cần thiết vì logic đã được chuyển vào event listener của checkbox
-// function updateStartChatButtonState() { ... }
-
 
 startChatBtn.addEventListener('click', async () => {
     console.log("Start Chat button clicked.");
@@ -936,7 +764,6 @@ startChatBtn.addEventListener('click', async () => {
         console.warn("Attempted to register user, but currentUserId is null. Firebase auth might not be ready yet.");
         return;
     }
-
     const fullName = fullNameInput.value.trim();
     await registerUser(fullName);
 });
@@ -948,7 +775,6 @@ googleLoginBtn.addEventListener('click', async () => {
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         console.log("Google Login User:", user.email);
-
         if (adminEmails.includes(user.email)) {
             currentUserIsAdmin = true;
             await loadUserData(user.uid, userIpAddress);
@@ -974,7 +800,6 @@ googleLoginBtn.addEventListener('click', async () => {
                     currentUser.isAdmin = true;
                 }
             }
-
             toggleModal(authModal, false);
             startScreen.classList.add('hidden');
             chatInterface.classList.remove('hidden');
@@ -993,47 +818,32 @@ googleLoginBtn.addEventListener('click', async () => {
     }
 });
 
-// NEW: Add event listener for the hidden image upload input
 uploadImageBtn.addEventListener('click', () => {
     uploadImageInput.click();
 });
 
-// NEW: Handle the file change event for image upload
 uploadImageInput.addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (file) {
         showMessageBox('Đang tải ảnh lên...', 'progress');
-
         try {
-            // Tên tệp trong Firebase Storage: images/tên-người-dùng_ngày-giờ_tên-tệp
             const fileName = `images/${currentUser.id}_${Date.now()}_${file.name}`;
             const storageRef = ref(storage, fileName);
-
-            // Bắt đầu quá trình tải lên
             const uploadTask = uploadBytesResumable(storageRef, file);
-
             uploadTask.on('state_changed',
                 (snapshot) => {
-                    // Cập nhật tiến độ tải lên
                     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                     updateMessageBox(`Đang tải ảnh lên... ${progress.toFixed(0)}%`);
                 },
                 (error) => {
-                    // Xử lý lỗi
                     hideMessageBox();
                     console.error('Lỗi khi tải ảnh lên:', error);
                     showMessageBox('Đã xảy ra lỗi khi tải ảnh lên.', 'error');
                 },
                 async () => {
-                    // Tải lên thành công, lấy URL công khai của ảnh
                     const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-
-                    // Tạo một thẻ <img> với URL và gửi nó như một tin nhắn
                     const imageMessage = `<img src="${downloadURL}" alt="Ảnh đã gửi" style="max-width:100%; height:auto;">`;
-
-                    // Gọi hàm sendMessage với loại tin nhắn là 'image'
                     sendMessage(imageMessage, 'image');
-
                     hideMessageBox();
                 }
             );
@@ -1043,12 +853,10 @@ uploadImageInput.addEventListener('change', async (event) => {
             showMessageBox('Đã xảy ra lỗi khi tải ảnh lên.', 'error');
         }
     }
-    // Xóa giá trị của input để người dùng có thể tải cùng một tệp nhiều lần
     event.target.value = '';
 });
 
 sendMessageBtn.addEventListener('click', () => {
-    // OLD: sendMessage() now accepts a parameter, so we must provide it.
     sendMessage(messageInput.value.trim());
 });
 
@@ -1059,13 +867,11 @@ messageInput.addEventListener('keypress', (e) => {
     }
 });
 
-
 themeSwitch.addEventListener('change', () => {
     document.body.classList.toggle('dark-theme', themeSwitch.checked);
     localStorage.setItem('theme', themeSwitch.checked ? 'dark' : 'light');
 });
 
-// Load saved theme preference and fetch IP on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
@@ -1074,9 +880,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     initializeAuth();
 });
-
-
-// --- Group Management Modals and Functions ---
 
 createJoinGroupBtn.addEventListener('click', () => {
     toggleModal(createJoinGroupModal, true);
@@ -1110,7 +913,7 @@ createGroupBtn.addEventListener('click', async () => {
         showMessageBox("Vui lòng đăng kí tài khoản trước.");
         return;
     }
-    if (!currentUserIsAdmin && currentUser.isPaused) { // Check for pause status
+    if (!currentUserIsAdmin && currentUser.isPaused) {
         showMessageBox("Tài khoản của bạn đã bị tạm khóa chức năng tạo nhóm bởi Admin.");
         return;
     }
@@ -1317,9 +1120,7 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
     }
 
     try {
-        const batch = writeBatch(db); // Use writeBatch(db)
-
-        // Delete all messages in the group
+        const batch = writeBatch(db);
         const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${activeGroupId}/messages`);
         const q = query(messagesRef);
         const snapshot = await getDocs(q);
@@ -1327,7 +1128,6 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
             batch.delete(doc.ref);
         });
 
-        // Remove group from all members' profiles
         const members = activeGroupData.members || [];
         for (const memberId of members) {
             const memberProfileRef = doc(db, `artifacts/${appId}/users/${memberId}/profile`, 'data');
@@ -1338,12 +1138,9 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
                 batch.update(memberProfileRef, { groups: updatedGroups });
             }
         }
-
-        // Delete the group document itself
         const groupDocRef = doc(db, `artifacts/${appId}/public/data/groups`, activeGroupId);
         batch.delete(groupDocRef);
-
-        await batch.commit(); // Commit all batched operations
+        await batch.commit();
 
         showMessageBox(`Nhóm "${activeGroupData.name}" đã được xóa thành công!`);
         toggleModal(deleteGroupModal, false);
@@ -1386,10 +1183,9 @@ cmdBtn.addEventListener('click', () => {
     toggleModal(adminCmdModal, true);
     cmdOutput.textContent = "Chào mừng đến với Admin CMD. Nhập lệnh để thực thi.";
     generateCmdKeyboard();
-    // Apply scrolling style for cmdOutput
-    cmdOutput.style.maxHeight = '300px'; // Set a max-height
-    cmdOutput.style.overflowY = 'auto';  // Enable vertical scrolling
-    cmdOutput.style.whiteSpace = 'pre-wrap'; // Preserve whitespace and wrap text
+    cmdOutput.style.maxHeight = '300px';
+    cmdOutput.style.overflowY = 'auto';
+    cmdOutput.style.whiteSpace = 'pre-wrap';
 });
 
 executeCmdBtn.addEventListener('click', executeAdminCommand);
@@ -1470,12 +1266,11 @@ async function toggleUserPause(userId, pause) {
 
 async function clearMessages(targetId) {
     try {
-        const batch = writeBatch(db); // Use writeBatch(db)
+        const batch = writeBatch(db);
         const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, targetId);
         const groupSnap = await getDoc(groupRef);
 
         if (groupSnap.exists()) {
-            // Target is a group ID
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${targetId}/messages`);
             const q = query(messagesRef);
             const snapshot = await getDocs(q);
@@ -1486,10 +1281,8 @@ async function clearMessages(targetId) {
             cmdOutput.textContent += `Đã xóa tất cả tin nhắn trong nhóm ${targetId}.\n`;
             await sendSystemMessage(targetId, `Admin đã xóa tất cả tin nhắn trong nhóm này.`);
         } else {
-            // Target is likely a user ID, clear messages by this user across all groups
             const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
             const groupsSnapshot = await getDocs(groupsCollectionRef);
-
             for (const groupDoc of groupsSnapshot.docs) {
                 const groupId = groupDoc.id;
                 const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
@@ -1499,7 +1292,7 @@ async function clearMessages(targetId) {
                     batch.delete(doc.ref);
                 });
             }
-            await batch.commit(); // Commit batch for all user messages
+            await batch.commit();
             cmdOutput.textContent += `Đã xóa tất cả tin nhắn của người dùng ${targetId} trên tất cả các nhóm.\n`;
             await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn của người dùng ${targetId}.`);
         }
@@ -1526,7 +1319,7 @@ async function showGroups() {
 async function showPeople() {
     try {
         const usersCollectionRef = collection(db, `artifacts/${appId}/users`);
-        const snapshot = await getDocs(usersCollectionRef); // This will get the user ID documents
+        const snapshot = await getDocs(usersCollectionRef);
         cmdOutput.textContent += "Danh sách các tài khoản:\n";
         if (snapshot.empty) {
             cmdOutput.textContent += "Không tìm thấy người dùng nào trong hệ thống.\n";
@@ -1562,10 +1355,9 @@ async function toggleAllPause(pause) {
         for (const userDoc of snapshot.docs) {
             const userId = userDoc.id;
             const profileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
-            const profileSnap = await getDoc(profileDocRef); // Get the actual profile data
+            const profileSnap = await getDoc(profileDocRef);
             if (profileSnap.exists()) {
                 const userData = profileSnap.data();
-                // Only pause non-admin users
                 if (!userData.isAdmin) {
                     batch.update(profileDocRef, { isPaused: pause });
                 }
@@ -1581,7 +1373,7 @@ async function toggleAllPause(pause) {
 
 async function clearAllMessages() {
     try {
-        const batch = writeBatch(db); // Use writeBatch(db)
+        const batch = writeBatch(db);
         const groupsCollectionRef = collection(db, `artifacts/${appId}/public/data/groups`);
         const groupsSnapshot = await getDocs(groupsCollectionRef);
 
@@ -1594,7 +1386,7 @@ async function clearAllMessages() {
                 batch.delete(doc.ref);
             });
         }
-        await batch.commit(); // Commit all batched operations
+        await batch.commit();
         cmdOutput.textContent += "Đã xóa tất cả tin nhắn trên tất cả các nhóm.\n";
         await sendSystemMessage(activeGroupId, `Admin đã xóa tất cả tin nhắn trên toàn bộ hệ thống.`);
     } catch (e) {
@@ -1616,11 +1408,8 @@ async function banUser(userId) {
             return;
         }
         const userData = userSnap.data();
-
-
         const batch = writeBatch(db);
 
-        // 2. Delete groups created by this user (except default-group)
         const groupsCreatedByUserQuery = query(
             collection(db, `artifacts/${appId}/public/data/groups`),
             where('creatorId', '==', userId)
@@ -1635,13 +1424,9 @@ async function banUser(userId) {
             if (groupDoc.id !== 'default-group') {
                 const groupIdToDelete = groupDoc.id;
                 const groupData = groupDoc.data();
-                
-                // Delete all messages in this group
                 const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupIdToDelete}/messages`);
                 const messagesSnapshot = await getDocs(query(messagesRef));
                 messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
-
-                // Remove this group from all its members' profiles
                 const membersInGroup = groupData.members || [];
                 for (const memberId of membersInGroup) {
                     const memberProfileRef = doc(db, `artifacts/${appId}/users/${memberId}/profile`, 'data');
@@ -1652,32 +1437,27 @@ async function banUser(userId) {
                         batch.update(memberProfileRef, { groups: updatedGroups });
                     }
                 }
-                // Delete the group document itself
                 batch.delete(doc(db, `artifacts/${appId}/public/data/groups`, groupIdToDelete));
                 cmdOutput.textContent += `- Đã xóa nhóm "${groupData.name}" (ID: ${groupIdToDelete}) được tạo bởi ${userId}.\n`;
             }
         }
 
-        // 3. Remove user from all other groups they are a member of
         cmdOutput.textContent += `Đang xóa người dùng ${userId} khỏi các nhóm khác...\n`;
         const allGroupsRef = collection(db, `artifacts/${appId}/public/data/groups`);
         const allGroupsSnapshot = await getDocs(allGroupsRef);
-
         for (const groupDoc of allGroupsSnapshot.docs) {
             const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupDoc.id);
             const groupData = groupDoc.data();
             const updatedMembers = (groupData.members || []).filter(member => member !== userId);
-            // Only update if the user was actually a member and is being removed
             if (updatedMembers.length < (groupData.members || []).length) {
                 batch.update(groupRef, { members: updatedMembers });
                 cmdOutput.textContent += `- Đã xóa ${userId} khỏi nhóm "${groupData.name}" (ID: ${groupDoc.id}).\n`;
             }
         }
 
-        // 4. Delete all messages sent by this user across all groups
         cmdOutput.textContent += `Đang xóa tin nhắn của người dùng ${userId}...\n`;
         const messagesToDelete = [];
-        for (const groupDoc of allGroupsSnapshot.docs) { // Re-iterate all groups for messages
+        for (const groupDoc of allGroupsSnapshot.docs) {
             const groupId = groupDoc.id;
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
             const q = query(messagesRef, where('senderId', '==', userId));
@@ -1692,14 +1472,9 @@ async function banUser(userId) {
         } else {
             cmdOutput.textContent += `- Không tìm thấy tin nhắn nào của người dùng ${userId} để xóa.\n`;
         }
-
-
-        // 5. Delete the user's profile document
         cmdOutput.textContent += `Đang xóa hồ sơ người dùng ${userId}...\n`;
         batch.delete(userProfileRef);
-
         await batch.commit();
-
         showMessageBox(`Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.`);
         cmdOutput.textContent += `Người dùng ${userData.name} (ID: ${userId}) đã bị cấm và xóa khỏi hệ thống.\n`;
         await sendSystemMessage(activeGroupId, `Admin đã cấm và xóa người dùng ${userData.name} (ID: ${userId}) khỏi hệ thống.`);
