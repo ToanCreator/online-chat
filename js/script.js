@@ -101,6 +101,7 @@ let isFirebaseInitialized = false;
 let isUserSessionLoaded = false;
 const adminEmails = ['tranhoangtoan2k8@gmail.com','lehuutam20122008@gmail.com','emailracvl5@gmail.com'];
 const userColorMap = {}; // Map to store unique colors for user IDs
+let countdownInterval = null;
 
 // --- Utility Functions ---
 function showMessageBox(message, type = 'info') {
@@ -322,6 +323,7 @@ async function handleAuthStateAndUI(user) {
         toggleModal(termsModal, false);
     }
     firebaseAuthChecked = true;
+    checkTermsCheckboxState();
 }
 
 onAuthStateChanged(auth, handleAuthStateAndUI);
@@ -724,13 +726,11 @@ fullNameInput.addEventListener('input', () => {
     }
 });
 
-let countdownInterval;
-agreeTermsCheckbox.addEventListener('change', function() {
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-    }
-    const startChatBtn = document.getElementById('start-chat-btn');
-    if (this.checked && firebaseAuthChecked && currentUserId) {
+function checkTermsCheckboxState() {
+    if (agreeTermsCheckbox.checked && firebaseAuthChecked && currentUserId) {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+        }
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
         let seconds = 15;
@@ -738,20 +738,27 @@ agreeTermsCheckbox.addEventListener('change', function() {
         const countdownSpan = document.getElementById('countdown');
         countdownInterval = setInterval(() => {
             seconds--;
-            if(countdownSpan) countdownSpan.textContent = seconds;
+            if (countdownSpan) countdownSpan.textContent = seconds;
             if (seconds <= 0) {
                 clearInterval(countdownInterval);
+                countdownInterval = null;
                 startChatBtn.disabled = false;
                 startChatBtn.classList.remove('disabled');
                 startChatBtn.textContent = 'Bắt đầu';
             }
         }, 1000);
     } else {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
         startChatBtn.disabled = true;
         startChatBtn.classList.add('disabled');
         startChatBtn.innerHTML = `Bắt đầu sau <span id="countdown">15</span>s`;
     }
-});
+}
+
+agreeTermsCheckbox.addEventListener('change', checkTermsCheckboxState);
 
 startChatBtn.addEventListener('click', async () => {
     console.log("Start Chat button clicked.");
@@ -776,40 +783,10 @@ googleLoginBtn.addEventListener('click', async () => {
         const user = result.user;
         console.log("Google Login User:", user.email);
         if (adminEmails.includes(user.email)) {
-            currentUserIsAdmin = true;
-            await loadUserData(user.uid, userIpAddress);
-            if (!currentUser) {
-                const newAdminData = {
-                    name: user.displayName || "Admin",
-                    id: user.uid,
-                    ipAddress: userIpAddress,
-                    createdAt: serverTimestamp(),
-                    groups: ['default-group'],
-                    isAdmin: true,
-                    isPaused: false,
-                };
-                const adminProfileDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'data');
-                await setDoc(adminProfileDocRef, newAdminData);
-                currentUser = newAdminData;
-                currentUserName = newAdminData.name;
-                console.log("Admin profile created:", newAdminData);
-            } else {
-                if (!currentUser.isAdmin) {
-                    const adminProfileDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'data');
-                    await updateDoc(adminProfileDocRef, { isAdmin: true });
-                    currentUser.isAdmin = true;
-                }
-            }
-            toggleModal(authModal, false);
-            startScreen.classList.add('hidden');
-            chatInterface.classList.remove('hidden');
-            updateUserProfileUI();
-            loadUserGroups();
-            loadMessages(activeGroupId);
-            cmdBtn.classList.remove('hidden');
+            // Let onAuthStateChanged handle the admin login
             showMessageBox("Đăng nhập Admin thành công!");
         } else {
-            await signOut(auth);
+            await signOut(auth); // Sign out non-admin users immediately
             showMessageBox("Bạn không có quyền Admin để đăng nhập bằng Google.");
         }
     } catch (error) {
@@ -825,6 +802,10 @@ uploadImageBtn.addEventListener('click', () => {
 uploadImageInput.addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (file) {
+        if (!currentUser || !currentUser.id) {
+            showMessageBox('Lỗi: Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.', 'error');
+            return;
+        }
         showMessageBox('Đang tải ảnh lên...', 'progress');
         try {
             const fileName = `images/${currentUser.id}_${Date.now()}_${file.name}`;
