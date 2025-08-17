@@ -332,11 +332,13 @@ async function handleAuthStateAndUI(user) {
                 if (docSnap.exists()) {
                     const userData = docSnap.data();
                     currentUser.isPaused = userData.isPaused; // Update local state
-                    currentUser.trollUntil = userData.trollUntil; // Update local state for trolling
-
+                    
                     // Check for trolling status
                     const now = new Date();
-                    if (userData.trollUntil && userData.trollUntil.toDate() > now) {
+                    const trollUntilTimestamp = userData.trollUntil;
+                    const isTrolled = trollUntilTimestamp && trollUntilTimestamp.toDate() > now;
+
+                    if (isTrolled) {
                         // Display troll overlay
                         if (banOverlay) {
                             banOverlay.style.display = 'flex';
@@ -378,6 +380,12 @@ async function handleAuthStateAndUI(user) {
                         banOverlay.style.display = 'flex';
                     }
                     chatInterface.style.pointerEvents = 'none';
+                    // Force logout
+                    signOut(auth).then(() => {
+                        console.log("User signed out after profile deletion.");
+                    }).catch((error) => {
+                        console.error("Error signing out:", error);
+                    });
                 }
             }, (error) => {
                 console.error("Error listening to user profile changes:", error);
