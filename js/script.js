@@ -297,7 +297,7 @@ async function initializeAuth() {
 async function handleAuthStateAndUI(user) {
     currentUserId = user ? user.uid : null;
     console.log("onAuthStateChanged fired. User:", user ? user.uid : "null");
-    console.log("Current currentUserId after onAuthStateChanged:", currentUserId); // Log currentUserId here
+    console.log("Current currentUserId after onAuthStateChanged:", currentUserId);
 
     if (!userIpAddress || userIpAddress === 'unknown') {
         await fetchUserIpAddress();
@@ -325,11 +325,39 @@ async function handleAuthStateAndUI(user) {
             loadUserGroups();
             loadMessages(activeGroupId);
 
-            // Setup real-time listener for current user's profile to handle pause/unpause/ban
+            // Setup real-time listener for current user's profile to handle pause/unpause/ban/troll
             onSnapshot(doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data'), (docSnap) => {
+                const banOverlay = document.getElementById('ban-overlay');
+
                 if (docSnap.exists()) {
                     const userData = docSnap.data();
                     currentUser.isPaused = userData.isPaused; // Update local state
+                    
+                    // Check for trolling status
+                    const now = new Date();
+                    const trollUntilTimestamp = userData.trollUntil;
+                    const isTrolled = trollUntilTimestamp && trollUntilTimestamp.toDate() > now;
+
+                    if (isTrolled) {
+                        // Display troll overlay
+                        if (banOverlay) {
+                            banOverlay.style.display = 'flex';
+                            banOverlay.innerHTML = `
+                                <div class="ban-content">
+                                    <h1>BẠN ĐÃ BỊ TROLL!</h1>
+                                    <p>Tài khoản của bạn đang bị troll bởi Admin.</p>
+                                    <p>Vui lòng làm mới trang (F5) để thoát.</p>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        // Hide troll overlay if time has expired
+                        if (banOverlay) {
+                            banOverlay.style.display = 'none';
+                        }
+                    }
+
+                    // Check for pause status
                     if (currentUser.isPaused) {
                         messageInput.disabled = true;
                         sendMessageBtn.disabled = true;
@@ -338,7 +366,6 @@ async function handleAuthStateAndUI(user) {
                         newGroupNameInput.disabled = true;
                         newGroupPasswordInput.disabled = true;
                         showMessageBox("Tài khoản của bạn đã bị tạm khóa chức năng chat bởi Admin.");
-                        
                     } else {
                         messageInput.disabled = false;
                         sendMessageBtn.disabled = false;
@@ -346,22 +373,23 @@ async function handleAuthStateAndUI(user) {
                         createGroupBtn.disabled = false;
                         newGroupNameInput.disabled = false;
                         newGroupPasswordInput.disabled = false;
-        }
-        
-    } else {
-        // Nếu hồ sơ người dùng bị xóa (lệnh ban đã thực thi)
-        // Hiển thị màn hình chặn toàn trang
-        const banOverlay = document.getElementById('ban-overlay');
-        if (banOverlay) {
-            banOverlay.style.display = 'flex';
-        }
-        // Vô hiệu hóa toàn bộ giao diện chat
-        chatInterface.style.pointerEvents = 'none';
-    }
-}, (error) => {
-    console.error("Error listening to user profile changes:", error);
-    
-});
+                    }
+                } else {
+                    // If the user's profile is deleted (ban command executed)
+                    if (banOverlay) {
+                        banOverlay.style.display = 'flex';
+                    }
+                    chatInterface.style.pointerEvents = 'none';
+                    // Force logout
+                    signOut(auth).then(() => {
+                        console.log("User signed out after profile deletion.");
+                    }).catch((error) => {
+                        console.error("Error signing out:", error);
+                    });
+                }
+            }, (error) => {
+                console.error("Error listening to user profile changes:", error);
+            });
 
         } else {
             // User exists in Firebase auth, but data not loaded (e.g., new user, IP mismatch for non-admin)
@@ -1269,7 +1297,7 @@ confirmDeleteGroupBtn.addEventListener('click', async () => {
 
 const cmdCommands = [
     ':pause', ':unpause', ':clear', ':allclear', ':showgroup', 
-    ':ban'
+    ':ban', ':troll'
 ];
 
 function generateCmdKeyboard() {
@@ -1339,6 +1367,10 @@ async function executeAdminCommand() {
             case ':ban':
                 if (targetId) await banUser(targetId);
                 else cmdOutput.textContent += "Lỗi: Cần ID người dùng. Cú pháp: :ban <id người dùng>\n";
+                break;
+            case ':troll':
+                if (targetId) await trollUser(targetId);
+                else cmdOutput.textContent += "Lỗi: Cần ID người dùng. Cú pháp: :troll <id người dùng>\n";
                 break;
             default:
                 cmdOutput.textContent += "Lệnh không hợp lệ.\n";
@@ -1558,5 +1590,35 @@ async function banUser(userId) {
         console.error("Error banning user:", e);
         showMessageBox(`Đã xảy ra lỗi khi cấm người dùng ${userId}: ${e.code || e.message}. Vui lòng thử lại.`);
         cmdOutput.textContent += `Lỗi khi cấm người dùng ${userId}: ${e.code || e.message}\n`;
+    }
+}
+
+async function trollUser(userId) {
+    if (userId === currentUserId) {
+        cmdOutput.textContent += "Lỗi: Không thể tự troll chính mình.\n";
+        return;
+    }
+
+    try {
+        const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+        const userSnap = await getDoc(userProfileRef);
+        if (!userSnap.exists()) {
+            cmdOutput.textContent += `Lỗi: Người dùng với ID ${userId} không tồn tại.\n`;
+            return;
+        }
+
+        // Cập nhật trường trollUntil của người dùng mục tiêu
+        const trollDuration = 60 * 1000; // 1 phút
+        const trollEndTime = new Date(Date.now() + trollDuration);
+
+        await updateDoc(userProfileRef, {
+            trollUntil: trollEndTime
+        });
+        
+        cmdOutput.textContent += `Đã troll người dùng ${userId}. Hiệu ứng sẽ kéo dài 1 phút.\n`;
+        await sendSystemMessage(activeGroupId, `Admin đã troll người dùng ${userSnap.data().name} (ID: ${userId}).`);
+
+    } catch (e) {
+        cmdOutput.textContent += `Lỗi khi troll người dùng ${userId}: ${e.code || e.message}\n`;
     }
 }
