@@ -1449,6 +1449,11 @@ async function clearAllMessages() {
 }
 
 async function trollUser(userId) {
+    if (userId === currentUser.id) {
+        cmdOutput.textContent += "Lỗi: Không thể tự cấm tài khoản của mình.\n";
+        return;
+    }
+    
     try {
         // Hiển thị banner troll
         const banOverlay = document.getElementById('ban-overlay');
