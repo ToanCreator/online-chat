@@ -104,7 +104,12 @@
             <div class="chat-header">
                 <h2 class="group-name-display">Dô la - ToanCreator</h2>
                 <div class="header-icons">
-                    <button class="icon-button" id="group-info-btn"><i class="fas fa-info-circle"></i></button>
+                    <label class="switch" for="theme-switch">
+                        <input type="checkbox" id="theme-switch">
+                        <span class="slider round"></span>
+                    </label>
+                    <button id="group-info-btn" class="icon-button"><i class="fas fa-info-circle"></i></button>
+                    <button id="upload-image-btn" class="icon-button"><i class="fas fa-image"></i></button>
                     <button class="icon-button" id="invite-user-btn"><i class="fas fa-user-plus"></i></button>
                     <button class="icon-button" id="delete-group-btn"><i class="fas fa-trash-alt"></i></button>
                     <button class="icon-button admin-only hidden" id="cmd-btn"><i class="fas fa-terminal"></i> CMD</button>
