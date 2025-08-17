@@ -48,10 +48,7 @@ const sendMessageBtn = document.getElementById('send-message-btn');
 const groupNameDisplay = document.querySelector('.group-name-display');
 const contactList = document.querySelector('.contact-list');
 const createJoinGroupBtn = document.querySelector('.create-join-group');
-// Các biến DOM
 const uploadImageBtn = document.getElementById('upload-image-btn');
-const themeSwitch = document.getElementById('theme-switch');
-
 // 1. Thêm xử lý cho nút upload hình ảnh
 uploadImageBtn.addEventListener('click', () => {
     window.open('https://imgbb.com', '_blank');
