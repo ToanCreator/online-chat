@@ -345,8 +345,8 @@ async function handleAuthStateAndUI(user) {
                             banOverlay.innerHTML = `
                                 <div class="ban-content">
                                     <h1>! TROLL TROLL VN !</h1>
-                                    <p>Tài khoản của bạn đang bị treo.</p>
-                                    <p>Vui lòng làm mới trang (F5) để (thoát).</p>
+                                    <p>Tài khoản của bạn đang bị troll bởi Admin.</p>
+                                    <p>Vui lòng làm mới trang [F5] để (thoát).</p>
                                 </div>
                             `;
                         }
@@ -421,32 +421,53 @@ onAuthStateChanged(auth, handleAuthStateAndUI);
  * @param {string} ip - The user's IP address.
  * @returns {boolean} True if user data was loaded successfully, false otherwise.
  */
-async function loadUserData(uid, ip) {
-    const userDocRef = doc(db, `artifacts/${appId}/users/${uid}/profile`, 'data');
+async function loadUserData(userId, userIp) {
+    console.log("Starting loadUserData for userId:", userId);
+    const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
+    
     try {
-        const userDocSnap = await getDoc(userDocRef);
+        const docSnap = await getDoc(userProfileRef);
+        const now = new Date();
+        let userProfileData = {};
 
-        if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            if (userData.ipAddress === ip || currentUserIsAdmin) {
-                currentUser = userData;
-                currentUserName = currentUser.name;
-                console.log("Existing user data loaded:", currentUser);
-                return true;
-            } else {
-                console.warn("IP address mismatch for existing user. Treating as new session.");
-                currentUser = null;
-                return false;
-            }
+        if (docSnap.exists()) {
+            userProfileData = docSnap.data();
+            console.log("User profile found. Data:", userProfileData);
         } else {
-            console.log("No existing user data found for UID:", uid);
-            currentUser = null;
-            return false;
+            console.log("No user profile found. Creating a new one.");
+            // Generate a random name for the new anonymous user
+            const randomName = `User_${Math.floor(Math.random() * 10000)}`;
+            userProfileData = {
+                name: randomName,
+                ipAddress: userIp,
+                isOnline: true,
+                isPaused: false,
+                isBanned: false,
+                lastSeen: now,
+                profileImage: "https://static.wikia.nocookie.net/roblox-blox-fruits/images/f/f6/Mochid_v2_Icon.png/revision/latest/scale-to-width-down/250?cb=20240324103138"
+            };
+            await setDoc(userProfileRef, userProfileData);
+            console.log("New user profile created.");
         }
-    } catch (error) {
-        console.error("Error loading user data:", error);
-        showMessageBox(`Lỗi khi tải dữ liệu người dùng: ${error.code || error.message}.`);
-        currentUser = null;
+
+        // Update last seen and online status
+        await updateDoc(userProfileRef, {
+            lastSeen: now,
+            isOnline: true
+        });
+
+        // Set the global currentUser object
+        Object.assign(currentUser, userProfileData, {
+            id: userId,
+            isOnline: true,
+            isPaused: userProfileData.isPaused,
+            trollUntil: userProfileData.trollUntil,
+            profileImage: userProfileData.profileImage
+        });
+
+        return true;
+    } catch (e) {
+        console.error("Error loading or creating user data:", e);
         return false;
     }
 }
@@ -768,26 +789,14 @@ async function sendMessage(text) {
     if (!currentUserId || !activeGroupId || !text.trim()) {
         return;
     }
+    
+    // Check local state to prevent sending if paused
+    if (currentUser.isPaused) {
+        showMessageBox("Bạn đã bị khóa chat bởi Admin và không thể gửi tin nhắn.");
+        return;
+    }
 
     try {
-        // --- Bắt đầu thay đổi ---
-        // Lấy dữ liệu người dùng mới nhất trực tiếp từ Firestore để kiểm tra trạng thái
-        const userProfileRef = doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data');
-        const userSnap = await getDoc(userProfileRef);
-        
-        if (userSnap.exists()) {
-            const userData = userSnap.data();
-            // Cập nhật trạng thái isPaused cục bộ
-            currentUser.isPaused = userData.isPaused;
-            
-            // Kiểm tra trạng thái isPaused trước khi gửi tin nhắn
-            if (currentUser.isPaused) {
-                showMessageBox("Bạn đã bị khóa chat bởi Admin và không thể gửi tin nhắn.");
-                return;
-            }
-        }
-        // --- Kết thúc thay đổi ---
-
         const newMessageRef = doc(collection(db, `artifacts/${appId}/public/data/groups/${activeGroupId}/messages`));
         
         const messageData = {
@@ -802,12 +811,12 @@ async function sendMessage(text) {
         await setDoc(newMessageRef, messageData);
         messageInput.value = '';
         messageInput.focus();
-        if (currentUser.isOnline) {
-             // Reset user's online status
-            await updateDoc(doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data'), {
-                isOnline: false,
-            });
-        }
+        
+        // Update user's online status
+        await updateDoc(doc(db, `artifacts/${appId}/users/${currentUserId}/profile`, 'data'), {
+            isOnline: true,
+            lastSeen: new Date()
+        });
 
     } catch (e) {
         console.error("Lỗi khi gửi tin nhắn: ", e);
