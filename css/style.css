@@ -1009,11 +1009,11 @@ body.dark-theme .message-bubble.admin .message-content {
 }
 
 body.dark-theme .message-content .sender-info {
-    color: #ccc;
+    color: #f1f1f1;
 }
 
 body.dark-theme .message-content .sender-info .copy-id-btn {
-    color: #aaa;
+    color: #f1f1f1;
 }
 
 body.dark-theme .message-content .sender-info .copy-id-btn:hover {
@@ -1021,7 +1021,7 @@ body.dark-theme .message-content .sender-info .copy-id-btn:hover {
 }
 
 body.dark-theme .message-content .timestamp {
-    color: #aaa;
+    color: #f1f1f1;
 }
 
 body.dark-theme .system-message {
@@ -1142,50 +1142,4 @@ body.dark-theme #message-box-text {
 .ban-content h1 {
     color: #ff4d4d; /* Màu đỏ cho tiêu đề */
     font-size: 2.5em;
-}
-/* Thêm đoạn mã sau vào CUỐI tệp style.css của bạn */
-
-/* Dark Mode Styles */
-body.dark-mode {
-    background-color: #121212; /* Nền tối */
-    color: #e0e0e0; /* Màu văn bản mặc định nhạt hơn */
-}
-
-/* Các thành phần giao diện trong chế độ tối */
-.dark-mode .chat-interface {
-    background-color: #1e1e1e;
-}
-
-.dark-mode .left-panel,
-.dark-mode .modal-content,
-.dark-mode .chat-header,
-.dark-mode .message-input-area {
-    background-color: #2c2c2c;
-    border-color: #444;
-}
-
-/* Chỉnh màu chữ của tin nhắn thành trắng */
-.dark-mode .message-content {
-    color: #f1f1f1;
-}
-
-/* Đảm bảo tên người dùng vẫn giữ màu sắc */
-.dark-mode .message .user-name {
-    color: inherit;
-}
-
-/* Chỉnh màu cho input và button */
-.dark-mode #message-input {
-    background-color: #444;
-    color: #f1f1f1;
-    border: 1px solid #555;
-}
-
-/* Cập nhật màu nút bật/tắt đèn */
-input:checked + .slider {
-    background-color: #00e676;
-}
-
-input:checked + .slider:before {
-    transform: translateX(20px);
 }
