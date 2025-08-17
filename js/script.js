@@ -1474,7 +1474,7 @@ async function clearAllMessages() {
 }
 
 async function trollUser(userId) {
-    if (userId === currentUser.id) {
+    if (userId === currentUserId) {
         cmdOutput.textContent += "Lỗi: Không thể tự troll chính mình.\n";
         return;
     }
@@ -1504,88 +1504,31 @@ async function trollUser(userId) {
 }
 
 async function banUser(userId) {
-    if (userId === currentUser.id) {
-        cmdOutput.textContent += "Lỗi: Không thể tự cấm tài khoản của mình.\n";
+    if (userId === currentUserId) {
+        showMessageBox("Bạn không thể tự cấm chính mình.");
         return;
     }
 
     try {
+        cmdOutput.textContent += `Đang cấm người dùng ${userId}...\n`;
         const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
         const userSnap = await getDoc(userProfileRef);
         if (!userSnap.exists()) {
+            showMessageBox(`Lỗi: Người dùng với ID ${userId} không tồn tại.`);
             cmdOutput.textContent += `Lỗi: Người dùng với ID ${userId} không tồn tại.\n`;
             return;
         }
         const userData = userSnap.data();
-
-        // 1. Mark user as paused immediately (this should disable chat/group creation via listener)
-        // This is done implicitly by deleting the profile which triggers signOut(auth)
-        // If you wanted to only pause without deleting, you'd do:
-        // await updateDoc(userProfileRef, { isPaused: true });
-        // showMessageBox(`Người dùng ${userId} đã bị tạm khóa chat.`);
-        // cmdOutput.textContent += `Người dùng ${userId} đã bị tạm khóa chat và tạo nhóm.\n`;
-
-
+        
         const batch = writeBatch(db);
 
-        // 2. Delete groups created by this user (except default-group)
-        const groupsCreatedByUserQuery = query(
-            collection(db, `artifacts/${appId}/public/data/groups`),
-            where('creatorId', '==', userId)
-        );
-        const createdGroupsSnapshot = await getDocs(groupsCreatedByUserQuery);
-
-        if (!createdGroupsSnapshot.empty) {
-            cmdOutput.textContent += `Đang xóa các nhóm do người dùng ${userId} tạo...\n`;
-        }
-
-        for (const groupDoc of createdGroupsSnapshot.docs) {
-            if (groupDoc.id !== 'default-group') {
-                const groupIdToDelete = groupDoc.id;
-                const groupData = groupDoc.data();
-                
-                // Delete all messages in this group
-                const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupIdToDelete}/messages`);
-                const messagesSnapshot = await getDocs(query(messagesRef));
-                messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
-
-                // Remove this group from all its members' profiles
-                const membersInGroup = groupData.members || [];
-                for (const memberId of membersInGroup) {
-                    const memberProfileRef = doc(db, `artifacts/${appId}/users/${memberId}/profile`, 'data');
-                    const memberSnap = await getDoc(memberProfileRef);
-                    if (memberSnap.exists()) {
-                        const memberData = memberSnap.data();
-                        const updatedGroups = (memberData.groups || []).filter(g => g !== groupIdToDelete);
-                        batch.update(memberProfileRef, { groups: updatedGroups });
-                    }
-                }
-                // Delete the group document itself
-                batch.delete(doc(db, `artifacts/${appId}/public/data/groups`, groupIdToDelete));
-                cmdOutput.textContent += `- Đã xóa nhóm "${groupData.name}" (ID: ${groupIdToDelete}) được tạo bởi ${userId}.\n`;
-            }
-        }
-
-        // 3. Remove user from all other groups they are a member of
-        cmdOutput.textContent += `Đang xóa người dùng ${userId} khỏi các nhóm khác...\n`;
-        const allGroupsRef = collection(db, `artifacts/${appId}/public/data/groups`);
-        const allGroupsSnapshot = await getDocs(allGroupsRef);
-
-        for (const groupDoc of allGroupsSnapshot.docs) {
-            const groupRef = doc(db, `artifacts/${appId}/public/data/groups`, groupDoc.id);
-            const groupData = groupDoc.data();
-            const updatedMembers = (groupData.members || []).filter(member => member !== userId);
-            // Only update if the user was actually a member and is being removed
-            if (updatedMembers.length < (groupData.members || []).length) {
-                batch.update(groupRef, { members: updatedMembers });
-                cmdOutput.textContent += `- Đã xóa ${userId} khỏi nhóm "${groupData.name}" (ID: ${groupDoc.id}).\n`;
-            }
-        }
-
-        // 4. Delete all messages sent by this user across all groups
+        // 1. Delete all user's messages from all groups
         cmdOutput.textContent += `Đang xóa tin nhắn của người dùng ${userId}...\n`;
+        const allGroupsRef = collection(db, `artifacts/${appId}/public/data/groups`);
+        const allGroupsSnap = await getDocs(allGroupsRef);
+        
         const messagesToDelete = [];
-        for (const groupDoc of allGroupsSnapshot.docs) { // Re-iterate all groups for messages
+        for (const groupDoc of allGroupsSnap.docs) {
             const groupId = groupDoc.id;
             const messagesRef = collection(db, `artifacts/${appId}/public/data/groups/${groupId}/messages`);
             const q = query(messagesRef, where('senderId', '==', userId));
@@ -1602,7 +1545,7 @@ async function banUser(userId) {
         }
 
 
-        // 5. Delete the user's profile document
+        // 2. Delete the user's profile document
         cmdOutput.textContent += `Đang xóa hồ sơ người dùng ${userId}...\n`;
         batch.delete(userProfileRef);
 
@@ -1615,6 +1558,6 @@ async function banUser(userId) {
     } catch (e) {
         console.error("Error banning user:", e);
         showMessageBox(`Đã xảy ra lỗi khi cấm người dùng ${userId}: ${e.code || e.message}. Vui lòng thử lại.`);
-        cmdOutput.textContent += `Lỗi khi cấm người dùng ${userId}: ${e.code || e.message}\n`;
+        cmdOutput.textContent += `Lỗi khi cấm người dùng ${userId}: ${e.code || e.message}.\n`;
     }
 }
