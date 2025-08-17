@@ -1009,11 +1009,11 @@ body.dark-theme .message-bubble.admin .message-content {
 }
 
 body.dark-theme .message-content .sender-info {
-    color: #f1f1f1;
+    color: #ccc;
 }
 
 body.dark-theme .message-content .sender-info .copy-id-btn {
-    color: #f1f1f1;
+    color: #aaa;
 }
 
 body.dark-theme .message-content .sender-info .copy-id-btn:hover {
@@ -1021,7 +1021,7 @@ body.dark-theme .message-content .sender-info .copy-id-btn:hover {
 }
 
 body.dark-theme .message-content .timestamp {
-    color: #f1f1f1;
+    color: #aaa;
 }
 
 body.dark-theme .system-message {
